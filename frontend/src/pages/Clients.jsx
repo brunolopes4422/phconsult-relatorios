@@ -21,6 +21,7 @@ export default function Clients() {
     try {
       const { data: client } = await api.post('/clients', { name: 'Aguardando conexão...' })
       const { data } = await api.get(`/clients/${client.id}/ca-auth-url`)
+      alert('url: ' + data.url)
       // Redireciona a página atual — evita bloqueio de popup
       window.location.href = data.url
     } catch (err) {
