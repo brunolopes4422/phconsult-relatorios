@@ -5,8 +5,9 @@ import api from '../lib/api'
 export default function Clients() {
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null) // null | { id?, name, status }
+  const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [connecting, setConnecting] = useState(false)
   const navigate = useNavigate()
 
   async function load() {
@@ -16,6 +17,30 @@ export default function Clients() {
   }
 
   useEffect(() => { load() }, [])
+
+  async function createAndConnect() {
+    setConnecting(true)
+    try {
+      // Cria cliente temporário
+      const { data: client } = await api.post('/clients', { name: 'Aguardando conexão...' })
+      
+      // Abre popup OAuth
+      const { data } = await api.get(`/clients/${client.id}/ca-auth-url`)
+      const popup = window.open(data.url, '_blank', 'width=600,height=700')
+
+      // Aguarda popup fechar
+      const interval = setInterval(async () => {
+        if (popup.closed) {
+          clearInterval(interval)
+          await load()
+          setConnecting(false)
+        }
+      }, 1000)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao conectar')
+      setConnecting(false)
+    }
+  }
 
   async function save() {
     setSaving(true)
@@ -52,9 +77,18 @@ export default function Clients() {
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500">Gerencie os clientes e conexões Conta Azul</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active' })}>
-          + Novo cliente
-        </button>
+        <div className="flex gap-3">
+          <button
+            className="btn-primary"
+            onClick={createAndConnect}
+            disabled={connecting}
+          >
+            {connecting ? '⏳ Aguardando conexão...' : '🔗 Novo cliente via Conta Azul'}
+          </button>
+          <button className="btn-secondary" onClick={() => setModal({ name: '', status: 'active' })}>
+            + Cadastro manual
+          </button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -65,6 +99,7 @@ export default function Clients() {
             <thead>
               <tr className="text-left text-xs font-medium text-slate-500 uppercase tracking-wide border-b border-slate-100">
                 <th className="px-6 py-3">Nome</th>
+                <th className="px-6 py-3">CNPJ</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3">Conta Azul</th>
                 <th className="px-6 py-3">Ações</th>
@@ -78,6 +113,7 @@ export default function Clients() {
                       {c.name}
                     </button>
                   </td>
+                  <td className="px-6 py-4 text-slate-500 text-sm">{c.documento || '—'}</td>
                   <td className="px-6 py-4">
                     <span className={c.status === 'active' ? 'badge-green' : 'badge-red'}>
                       {c.status === 'active' ? '● Ativo' : '● Inativo'}
@@ -97,11 +133,6 @@ export default function Clients() {
                       <button className="btn-secondary text-sm" onClick={() => setModal({ id: c.id, name: c.name, status: c.status })}>
                         Editar
                       </button>
-                      {!c.ca_connected && (
-                        <button className="btn-secondary text-sm" onClick={() => connectCA(c.id)}>
-                          Conta Azul
-                        </button>
-                      )}
                       <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => remove(c.id, c.name)}>
                         ✕
                       </button>
@@ -110,19 +141,18 @@ export default function Clients() {
                 </tr>
               ))}
               {clients.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Modal */}
       {modal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-              {modal.id ? 'Editar cliente' : 'Novo cliente'}
+              {modal.id ? 'Editar cliente' : 'Novo cliente manual'}
             </h2>
             <div className="space-y-4">
               <div>
