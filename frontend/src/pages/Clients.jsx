@@ -7,7 +7,7 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [connecting, setConnecting] = useState(false)
+  const [copied, setCopied] = useState(null)
   const navigate = useNavigate()
 
   async function load() {
@@ -18,34 +18,11 @@ export default function Clients() {
 
   useEffect(() => { load() }, [])
 
-  async function createAndConnect() {
-    setConnecting(true)
-    try {
-      const { data: client } = await api.post('/clients', { name: 'Aguardando conexão...' })
-      const { data } = await api.get(`/clients/${client.id}/ca-auth-url`)
-      const popup = window.open(data.url, '_blank', 'width=600,height=700')
-
-      const interval = setInterval(async () => {
-        try {
-          if (popup.closed) {
-            clearInterval(interval)
-            await load()
-            setConnecting(false)
-          }
-        } catch {
-          clearInterval(interval)
-          setConnecting(false)
-        }
-      }, 1000)
-    } catch (err) {
-      alert(err.response?.data?.error || 'Erro ao conectar')
-      setConnecting(false)
-    }
-  }
-
-  async function connectCA(id) {
-    const { data } = await api.get(`/clients/${id}/ca-auth-url`)
-    window.open(data.url, '_blank', 'width=600,height=700')
+  function copyLink(id) {
+    const link = `${window.location.origin}/conectar/${id}`
+    navigator.clipboard.writeText(link)
+    setCopied(id)
+    setTimeout(() => setCopied(null), 2000)
   }
 
   async function save() {
@@ -78,14 +55,9 @@ export default function Clients() {
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500">Gerencie os clientes e conexões Conta Azul</p>
         </div>
-        <div className="flex gap-3">
-          <button className="btn-primary" onClick={createAndConnect} disabled={connecting}>
-            {connecting ? '⏳ Aguardando conexão...' : '🔗 Novo cliente via Conta Azul'}
-          </button>
-          <button className="btn-secondary" onClick={() => setModal({ name: '', status: 'active' })}>
-            + Cadastro manual
-          </button>
-        </div>
+        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active' })}>
+          + Novo cliente
+        </button>
       </div>
 
       <div className="card overflow-hidden">
@@ -120,8 +92,11 @@ export default function Clients() {
                     {c.ca_connected ? (
                       <span className="badge-green">● Conectado</span>
                     ) : (
-                      <button className="text-sm text-brand-600 hover:underline" onClick={() => connectCA(c.id)}>
-                        🔗 Conectar
+                      <button
+                        className="text-sm text-brand-600 hover:underline"
+                        onClick={() => copyLink(c.id)}
+                      >
+                        {copied === c.id ? '✓ Link copiado!' : '📋 Copiar link'}
                       </button>
                     )}
                   </td>
@@ -149,7 +124,7 @@ export default function Clients() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-md p-6">
             <h2 className="text-lg font-semibold text-slate-800 mb-4">
-              {modal.id ? 'Editar cliente' : 'Novo cliente manual'}
+              {modal.id ? 'Editar cliente' : 'Novo cliente'}
             </h2>
             <div className="space-y-4">
               <div>

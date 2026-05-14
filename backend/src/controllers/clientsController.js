@@ -4,7 +4,7 @@ const axios = require('axios')
 async function list(req, res) {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, name, status, ca_connected, ca_token_expires_at')
+    .select('id, name, status, ca_connected, ca_token_expires_at, documento')
     .order('name')
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
@@ -13,10 +13,20 @@ async function list(req, res) {
 async function get(req, res) {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, name, status, ca_connected, ca_token_expires_at')
+    .select('id, name, status, ca_connected, ca_token_expires_at, documento')
     .eq('id', req.params.id)
     .single()
   if (error) return res.status(404).json({ error: 'Cliente não encontrado' })
+  res.json(data)
+}
+
+async function getPublicClient(req, res) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('id, name, ca_connected')
+    .eq('id', req.params.id)
+    .single()
+  if (error || !data) return res.status(404).json({ error: 'Cliente não encontrado' })
   res.json(data)
 }
 
@@ -58,6 +68,7 @@ function caAuthUrl(req, res) {
     `&redirect_uri=${encodeURIComponent(process.env.CA_REDIRECT_URI)}` +
     `&scope=openid+profile` +
     `&state=${clientId}`
+  res.json({ url })
 }
 
 async function caCallback(req, res) {
@@ -104,7 +115,7 @@ async function caCallback(req, res) {
       name: nome,
     }).eq('id', clientId)
 
-    res.json({ message: 'Conta Azul conectada com sucesso', empresa: { nome, documento: empresa.documento } })
+    res.json({ message: 'Conta Azul conectada com sucesso' })
   } catch (err) {
     console.error('CA OAuth error:', err.response?.data || err.message)
     res.status(500).json({ error: 'Erro ao conectar Conta Azul' })
@@ -169,4 +180,4 @@ async function getValidToken(clientId) {
   return client.ca_access_token
 }
 
-module.exports = { list, get, create, update, remove, caAuthUrl, caCallback, getValidToken }
+module.exports = { list, get, create, update, remove, caAuthUrl, caCallback, getValidToken, getPublicClient }

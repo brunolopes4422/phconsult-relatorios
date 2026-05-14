@@ -15,6 +15,7 @@ import History from './pages/History'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
 import AuthCallback from './pages/AuthCallback'
+import ConectarCliente from './pages/ConectarCliente'
 
 function PrivateRoute({ children, adminOnly }) {
   const { user } = useAuth()
@@ -31,6 +32,7 @@ function App() {
           <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/conectar/:clientId" element={<ConectarCliente />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />

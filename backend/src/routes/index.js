@@ -12,8 +12,11 @@ router.get('/setup/status', authCtrl.setupStatus)
 router.post('/setup', authCtrl.setup)
 router.post('/auth/login', authCtrl.login)
 
-// OAuth callback (called from browser after Conta Azul login)
+// OAuth callback
 router.get('/auth/callback', clientsCtrl.caCallback)
+
+// Rota pública para página de conexão do cliente
+router.get('/public/clients/:id', clientsCtrl.getPublicClient)
 
 // Protected routes
 router.use(auth)
