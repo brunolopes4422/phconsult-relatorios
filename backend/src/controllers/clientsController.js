@@ -87,14 +87,25 @@ async function caCallback(req, res) {
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
 
+    // Busca dados da empresa conectada
+    const { data: empresa } = await axios.get(
+      'https://api-v2.contaazul.com/v1/pessoas/conta-conectada',
+      { headers: { Authorization: `Bearer ${tokens.access_token}` } }
+    )
+
+    const nome = empresa.nome_fantasia || empresa.razao_social
+
     await supabase.from('clients').update({
       ca_access_token: tokens.access_token,
       ca_refresh_token: tokens.refresh_token,
       ca_token_expires_at: expiresAt,
       ca_connected: true,
+      documento: empresa.documento,
+      razao_social: empresa.razao_social,
+      name: nome,
     }).eq('id', clientId)
 
-    res.json({ message: 'Conta Azul conectada com sucesso' })
+    res.json({ message: 'Conta Azul conectada com sucesso', empresa: { nome, documento: empresa.documento } })
   } catch (err) {
     console.error('CA OAuth error:', err.response?.data || err.message)
     res.status(500).json({ error: 'Erro ao conectar Conta Azul' })
