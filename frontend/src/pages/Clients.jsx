@@ -7,6 +7,7 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [connecting, setConnecting] = useState(false)
   const navigate = useNavigate()
 
   async function load() {
@@ -18,20 +19,27 @@ export default function Clients() {
   useEffect(() => { load() }, [])
 
   async function createAndConnect() {
+    setConnecting(true)
     try {
+      // Cria cliente temporário
       const { data: client } = await api.post('/clients', { name: 'Aguardando conexão...' })
+      
+      // Abre popup OAuth
       const { data } = await api.get(`/clients/${client.id}/ca-auth-url`)
-      alert('url: ' + data.url)
-      // Redireciona a página atual — evita bloqueio de popup
-      window.location.href = data.url
+      const popup = window.open(data.url, '_blank', 'width=600,height=700')
+
+      // Aguarda popup fechar
+      const interval = setInterval(async () => {
+        if (popup.closed) {
+          clearInterval(interval)
+          await load()
+          setConnecting(false)
+        }
+      }, 1000)
     } catch (err) {
       alert(err.response?.data?.error || 'Erro ao conectar')
+      setConnecting(false)
     }
-  }
-
-  async function connectCA(id) {
-    const { data } = await api.get(`/clients/${id}/ca-auth-url`)
-    window.location.href = data.url
   }
 
   async function save() {
@@ -57,6 +65,11 @@ export default function Clients() {
     load()
   }
 
+  async function connectCA(id) {
+    const { data } = await api.get(`/clients/${id}/ca-auth-url`)
+    window.open(data.url, '_blank', 'width=600,height=700')
+  }
+
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -65,8 +78,12 @@ export default function Clients() {
           <p className="text-slate-500">Gerencie os clientes e conexões Conta Azul</p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-primary" onClick={createAndConnect}>
-            🔗 Novo cliente via Conta Azul
+          <button
+            className="btn-primary"
+            onClick={createAndConnect}
+            disabled={connecting}
+          >
+            {connecting ? '⏳ Aguardando conexão...' : '🔗 Novo cliente via Conta Azul'}
           </button>
           <button className="btn-secondary" onClick={() => setModal({ name: '', status: 'active' })}>
             + Cadastro manual
