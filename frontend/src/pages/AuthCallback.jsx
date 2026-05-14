@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import api from '../lib/auth'
+import api from '../lib/api'
 
 export default function AuthCallback() {
   const [params] = useSearchParams()
