@@ -21,18 +21,19 @@ export default function Clients() {
   async function createAndConnect() {
     setConnecting(true)
     try {
-      // Cria cliente temporário
       const { data: client } = await api.post('/clients', { name: 'Aguardando conexão...' })
-      
-      // Abre popup OAuth
       const { data } = await api.get(`/clients/${client.id}/ca-auth-url`)
       const popup = window.open(data.url, '_blank', 'width=600,height=700')
 
-      // Aguarda popup fechar
       const interval = setInterval(async () => {
-        if (popup.closed) {
+        try {
+          if (popup.closed) {
+            clearInterval(interval)
+            await load()
+            setConnecting(false)
+          }
+        } catch {
           clearInterval(interval)
-          await load()
           setConnecting(false)
         }
       }, 1000)
@@ -40,6 +41,11 @@ export default function Clients() {
       alert(err.response?.data?.error || 'Erro ao conectar')
       setConnecting(false)
     }
+  }
+
+  async function connectCA(id) {
+    const { data } = await api.get(`/clients/${id}/ca-auth-url`)
+    window.open(data.url, '_blank', 'width=600,height=700')
   }
 
   async function save() {
@@ -65,11 +71,6 @@ export default function Clients() {
     load()
   }
 
-  async function connectCA(id) {
-    const { data } = await api.get(`/clients/${id}/ca-auth-url`)
-    window.open(data.url, '_blank', 'width=600,height=700')
-  }
-
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
@@ -78,11 +79,7 @@ export default function Clients() {
           <p className="text-slate-500">Gerencie os clientes e conexões Conta Azul</p>
         </div>
         <div className="flex gap-3">
-          <button
-            className="btn-primary"
-            onClick={createAndConnect}
-            disabled={connecting}
-          >
+          <button className="btn-primary" onClick={createAndConnect} disabled={connecting}>
             {connecting ? '⏳ Aguardando conexão...' : '🔗 Novo cliente via Conta Azul'}
           </button>
           <button className="btn-secondary" onClick={() => setModal({ name: '', status: 'active' })}>
