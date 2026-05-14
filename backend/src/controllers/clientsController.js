@@ -52,13 +52,12 @@ async function remove(req, res) {
 
 function caAuthUrl(req, res) {
   const clientId = req.params.id
-  const url = `https://auth.contaazul.com/oauth2/authorize` +
+  const url = `https://auth.contaazul.com/login` +
     `?response_type=code` +
     `&client_id=${process.env.CA_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(process.env.CA_REDIRECT_URI)}` +
-    `&scope=openid+profile+aws.cognito.signin.user.admin` +
+    `&scope=openid+profile` +
     `&state=${clientId}`
-  res.json({ url })
 }
 
 async function caCallback(req, res) {
