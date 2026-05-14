@@ -25,6 +25,9 @@ router.post('/cron/run', schedulesCtrl.runCron)
 // Protected routes
 router.use(auth)
 
+// Cron por cliente (autenticado)
+router.post('/cron/run-client', schedulesCtrl.runClient)
+
 // Clients
 router.get('/clients', clientsCtrl.list)
 router.get('/clients/:id', clientsCtrl.get)

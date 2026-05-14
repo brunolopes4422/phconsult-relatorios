@@ -275,9 +275,25 @@ export default function ClientDetail() {
         <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-semibold text-slate-800">Agendamentos automáticos</h2>
-            <button className="btn-primary text-sm" onClick={() => setModalS({ frequency: 'monthly', send_time: '08:00', period_type: 'month', day_of_week: 5, day_of_month: 1, active: true })}>
-              + Novo agendamento
-            </button>
+            <div className="flex gap-2">
+              <button
+                className="btn-secondary text-sm"
+                onClick={async () => {
+                  try {
+                    const { data } = await api.post('/cron/run-client', { client_id: id })
+                    alert(data.message)
+                    load()
+                  } catch (err) {
+                    alert(err.response?.data?.error || 'Erro ao executar')
+                  }
+                }}
+              >
+                ▶ Executar agora
+              </button>
+              <button className="btn-primary text-sm" onClick={() => setModalS({ frequency: 'monthly', send_time: '08:00', period_type: 'month', day_of_week: 5, day_of_month: 1, active: true })}>
+                + Novo agendamento
+              </button>
+            </div>
           </div>
           <table className="w-full">
             <thead>
