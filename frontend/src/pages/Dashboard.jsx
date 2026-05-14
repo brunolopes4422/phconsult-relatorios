@@ -79,9 +79,9 @@ export default function Dashboard() {
                   <td className="px-6 py-4">
                     <button
                       className="btn-primary text-sm"
-                      disabled={!c.ca_connected}
+                      disabled={c.integration_type === 'omie' ? !c.omie_app_key : !c.ca_connected}
                       onClick={() => navigate(`/report/${c.id}`)}
-                      title={!c.ca_connected ? 'Conecte o Conta Azul primeiro' : ''}
+                      title={c.integration_type === 'omie' ? (!c.omie_app_key ? 'Configure as chaves Omie primeiro' : '') : (!c.ca_connected ? 'Conecte o Conta Azul primeiro' : '')}
                     >
                       📊 Gerar relatório
                     </button>

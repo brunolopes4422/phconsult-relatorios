@@ -4,7 +4,7 @@ const axios = require('axios')
 async function list(req, res) {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, name, status, ca_connected, ca_token_expires_at, documento')
+    .select('id, name, status, ca_connected, ca_token_expires_at, documento, integration_type, omie_app_key')
     .order('name')
   if (error) return res.status(500).json({ error: error.message })
   res.json(data)
@@ -13,7 +13,7 @@ async function list(req, res) {
 async function get(req, res) {
   const { data, error } = await supabase
     .from('clients')
-    .select('id, name, status, ca_connected, ca_token_expires_at, documento')
+    .select('id, name, status, ca_connected, ca_token_expires_at, documento, integration_type, omie_app_key')
     .eq('id', req.params.id)
     .single()
   if (error) return res.status(404).json({ error: 'Cliente não encontrado' })
@@ -53,10 +53,15 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  const { name, status } = req.body
+  const { name, status, integration_type, omie_app_key, omie_app_secret } = req.body
+  const updates = { name, status }
+  if (integration_type) updates.integration_type = integration_type
+  if (omie_app_key !== undefined) updates.omie_app_key = omie_app_key
+  if (omie_app_secret !== undefined) updates.omie_app_secret = omie_app_secret
+
   const { data, error } = await supabase
     .from('clients')
-    .update({ name, status })
+    .update(updates)
     .eq('id', req.params.id)
     .select()
     .single()

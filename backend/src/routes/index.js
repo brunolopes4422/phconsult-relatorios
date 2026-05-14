@@ -7,6 +7,7 @@ const reportsCtrl = require('../controllers/reportsController')
 const usersCtrl = require('../controllers/usersController')
 const configCtrl = require('../controllers/configController')
 const schedulesCtrl = require('../controllers/schedulesController')
+const accountsCtrl = require('../controllers/accountsController')
 
 // Auth (public)
 router.get('/setup/status', authCtrl.setupStatus)
@@ -37,6 +38,10 @@ router.delete('/clients/:id', clientsCtrl.remove)
 router.get('/clients/:id/ca-auth-url', clientsCtrl.caAuthUrl)
 router.get('/clients/:id/credentials', clientsCtrl.getCredentials)
 
+// Accounts
+router.get('/clients/:id/accounts', accountsCtrl.listAccounts)
+router.post('/clients/:id/accounts', accountsCtrl.saveAccounts)
+
 // Recipients
 router.get('/clients/:clientId/recipients', recipientsCtrl.listByClient)
 router.post('/clients/:clientId/recipients', recipientsCtrl.create)
@@ -64,5 +69,7 @@ router.get('/users', adminOnly, usersCtrl.list)
 router.post('/users', adminOnly, usersCtrl.create)
 router.put('/users/:id', adminOnly, usersCtrl.update)
 router.delete('/users/:id', adminOnly, usersCtrl.remove)
+
+router.get('/clients/:id/accounts/refresh', accountsCtrl.refreshAccounts)
 
 module.exports = router

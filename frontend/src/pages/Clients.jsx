@@ -29,7 +29,7 @@ export default function Clients() {
     setSaving(true)
     try {
       if (modal.id) {
-        await api.put(`/clients/${modal.id}`, { name: modal.name, status: modal.status })
+        await api.put(`/clients/${modal.id}`, modal)
       } else {
         await api.post('/clients', { name: modal.name, status: modal.status || 'active' })
       }
@@ -53,9 +53,9 @@ export default function Clients() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
-          <p className="text-slate-500">Gerencie os clientes e conexões Conta Azul</p>
+          <p className="text-slate-500">Gerencie os clientes e conexões financeiras</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active' })}>
+        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active', integration_type: 'conta_azul', omie_app_key: '', omie_app_secret: '' })}>
           + Novo cliente
         </button>
       </div>
@@ -69,8 +69,9 @@ export default function Clients() {
               <tr className="text-left text-xs font-medium text-slate-500 uppercase tracking-wide border-b border-slate-100">
                 <th className="px-6 py-3">Nome</th>
                 <th className="px-6 py-3">CNPJ</th>
+                <th className="px-6 py-3">Integração</th>
                 <th className="px-6 py-3">Status</th>
-                <th className="px-6 py-3">Conta Azul</th>
+                <th className="px-6 py-3">Conexão</th>
                 <th className="px-6 py-3">Ações</th>
               </tr>
             </thead>
@@ -84,25 +85,35 @@ export default function Clients() {
                   </td>
                   <td className="px-6 py-4 text-slate-500 text-sm">{c.documento || '—'}</td>
                   <td className="px-6 py-4">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${c.integration_type === 'omie' ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'}`}>
+                      {c.integration_type === 'omie' ? 'Omie' : 'Conta Azul'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
                     <span className={c.status === 'active' ? 'badge-green' : 'badge-red'}>
                       {c.status === 'active' ? '● Ativo' : '● Inativo'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    {c.ca_connected ? (
-                      <span className="badge-green">● Conectado</span>
+                    {c.integration_type === 'omie' ? (
+                      c.omie_app_key ? (
+                        <span className="badge-green">● Configurado</span>
+                      ) : (
+                        <span className="badge-yellow">● Sem chaves</span>
+                      )
                     ) : (
-                      <button
-                        className="text-sm text-brand-600 hover:underline"
-                        onClick={() => copyLink(c.id)}
-                      >
-                        {copied === c.id ? '✓ Link copiado!' : '📋 Copiar link'}
-                      </button>
+                      c.ca_connected ? (
+                        <span className="badge-green">● Conectado</span>
+                      ) : (
+                        <button className="text-sm text-brand-600 hover:underline" onClick={() => copyLink(c.id)}>
+                          {copied === c.id ? '✓ Copiado!' : '📋 Copiar link'}
+                        </button>
+                      )
                     )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="btn-secondary text-sm" onClick={() => setModal({ id: c.id, name: c.name, status: c.status })}>
+                      <button className="btn-secondary text-sm" onClick={() => setModal({ id: c.id, name: c.name, status: c.status, integration_type: c.integration_type || 'conta_azul', omie_app_key: c.omie_app_key || '', omie_app_secret: c.omie_app_secret || '' })}>
                         Editar
                       </button>
                       <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => remove(c.id, c.name)}>
@@ -113,7 +124,7 @@ export default function Clients() {
                 </tr>
               ))}
               {clients.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Nenhum cliente cadastrado</td></tr>
               )}
             </tbody>
           </table>
@@ -138,6 +149,25 @@ export default function Clients() {
                   <option value="inactive">Inativo</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Integração</label>
+                <select className="input" value={modal.integration_type} onChange={e => setModal(m => ({ ...m, integration_type: e.target.value }))}>
+                  <option value="conta_azul">Conta Azul</option>
+                  <option value="omie">Omie</option>
+                </select>
+              </div>
+              {modal.integration_type === 'omie' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Omie App Key</label>
+                    <input className="input font-mono text-sm" value={modal.omie_app_key} onChange={e => setModal(m => ({ ...m, omie_app_key: e.target.value }))} placeholder="App Key do cliente" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Omie App Secret</label>
+                    <input className="input font-mono text-sm" type="password" value={modal.omie_app_secret} onChange={e => setModal(m => ({ ...m, omie_app_secret: e.target.value }))} placeholder="App Secret do cliente" />
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <button className="btn-primary flex-1" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button>

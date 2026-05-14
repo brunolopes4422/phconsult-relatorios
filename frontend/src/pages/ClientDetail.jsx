@@ -97,6 +97,110 @@ function CredentialsTab({ clientId }) {
   )
 }
 
+function AccountsTab({ clientId }) {
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [fetching, setFetching] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { data } = await api.get(`/clients/${clientId}/accounts`)
+      setAccounts(data)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao carregar contas')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function refresh() {
+    setLoading(true)
+    try {
+      const { data } = await api.get(`/clients/${clientId}/accounts/refresh`)
+      setAccounts(data)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao atualizar contas')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [clientId])
+
+  function toggle(account_id) {
+    setAccounts(prev => prev.map(a =>
+      a.account_id === account_id ? { ...a, include_in_report: !a.include_in_report } : a
+    ))
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      await api.post(`/clients/${clientId}/accounts`, { accounts })
+      alert('Contas salvas com sucesso!')
+    } catch (err) {
+      alert(err.response?.data?.error || 'Erro ao salvar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="card p-8 text-center text-slate-400">Carregando contas correntes...</div>
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-800">Contas Correntes</h2>
+          <p className="text-sm text-slate-500">Selecione quais contas serão consideradas nos relatórios. <span className="text-amber-600 font-medium">Caso nenhuma seja selecionada, todas serão consideradas.</span></p>        </div>
+        <div className="flex gap-2">
+          <button className="btn-secondary text-sm" onClick={refresh} disabled={loading}>
+            🔄 Atualizar da API
+          </button>
+          <button className="btn-primary text-sm" onClick={save} disabled={saving}>
+            {saving ? 'Salvando...' : 'Salvar seleção'}
+          </button>
+        </div>
+      </div>
+
+      {accounts.length === 0 ? (
+        <div className="p-12 text-center text-slate-400">
+          Nenhuma conta encontrada. Verifique a conexão com o sistema financeiro.
+        </div>
+      ) : (
+        <table className="w-full">
+          <thead>
+            <tr className="text-left text-xs font-medium text-slate-500 uppercase tracking-wide border-b border-slate-100">
+              <th className="px-6 py-3">Incluir</th>
+              <th className="px-6 py-3">Conta</th>
+              <th className="px-6 py-3">Tipo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map(a => (
+              <tr key={a.account_id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => toggle(a.account_id)}>
+                <td className="px-6 py-4">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-brand-500"
+                    checked={a.include_in_report}
+                    onChange={() => toggle(a.account_id)}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </td>
+                <td className="px-6 py-4 font-medium text-slate-800">{a.account_name}</td>
+                <td className="px-6 py-4 text-slate-500 text-sm">{a.account_type || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export default function ClientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -206,7 +310,7 @@ export default function ClientDetail() {
             )}
           </div>
         </div>
-        {client.ca_connected && (
+        {(client.ca_connected || (client.integration_type === 'omie' && client.omie_app_key)) && (
           <button className="btn-primary" onClick={() => navigate(`/report/${id}`)}>
             📊 Gerar relatório
           </button>
@@ -215,13 +319,13 @@ export default function ClientDetail() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-slate-200">
-        {['recipients', 'schedules', 'credentials'].map(t => (
+        {['recipients', 'schedules', 'accounts', 'credentials'].map(t => (
           <button
             key={t}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             onClick={() => setTab(t)}
           >
-            {t === 'recipients' ? 'Destinatários' : t === 'schedules' ? 'Agendamentos' : 'Credenciais'}
+            {t === 'recipients' ? 'Destinatários' : t === 'schedules' ? 'Agendamentos' : t === 'accounts' ? 'Contas Correntes' : 'Credenciais'}
           </button>
         ))}
       </div>
@@ -336,6 +440,9 @@ export default function ClientDetail() {
           </table>
         </div>
       )}
+      {/* Tab Contas Correntes */}
+      {tab === 'accounts' && <AccountsTab clientId={id} />}
+
 
       {/* Tab Credenciais */}
       {tab === 'credentials' && <CredentialsTab clientId={id} />}
