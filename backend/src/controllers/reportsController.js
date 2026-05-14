@@ -39,6 +39,7 @@ async function fetchAllPages(url, token, params) {
     const items = data?.itens || data?.content || data || []
     if (!Array.isArray(items) || items.length === 0) break
     all = all.concat(items)
+    if (page === 1) console.log('SAMPLE ITEM:', JSON.stringify(items[0]))
     if (items.length < 100) break
     page++
   }
