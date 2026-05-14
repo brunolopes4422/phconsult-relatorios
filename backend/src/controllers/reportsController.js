@@ -39,7 +39,6 @@ async function fetchAllPages(url, token, params) {
     const items = data?.itens || data?.content || data || []
     if (!Array.isArray(items) || items.length === 0) break
     all = all.concat(items)
-    if (page === 1) console.log('SAMPLE ITEM:', JSON.stringify(items[0]))
     if (items.length < 100) break
     page++
   }
@@ -70,8 +69,8 @@ async function generate(req, res) {
       fetchAllPages(`${CA_BASE}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, token, params),
     ])
 
-    const entradas = receber.reduce((sum, i) => sum + (i.valor || i.value || 0), 0)
-    const saidas = pagar.reduce((sum, i) => sum + (i.valor || i.value || 0), 0)
+    const entradas = receber.reduce((sum, i) => sum + (i.total || 0), 0)
+    const saidas = pagar.reduce((sum, i) => sum + (i.total || 0), 0)
     const saldo = entradas - saidas
 
     const message = buildMessage(client.name, period_start, period_end, entradas, saidas, saldo)
