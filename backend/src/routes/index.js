@@ -6,6 +6,7 @@ const recipientsCtrl = require('../controllers/recipientsController')
 const reportsCtrl = require('../controllers/reportsController')
 const usersCtrl = require('../controllers/usersController')
 const configCtrl = require('../controllers/configController')
+const schedulesCtrl = require('../controllers/schedulesController')
 
 // Auth (public)
 router.get('/setup/status', authCtrl.setupStatus)
@@ -18,6 +19,9 @@ router.get('/auth/callback', clientsCtrl.caCallback)
 // Rota pública para página de conexão do cliente
 router.get('/public/clients/:id', clientsCtrl.getPublicClient)
 
+// Cron (protegido por secret)
+router.post('/cron/run', schedulesCtrl.runCron)
+
 // Protected routes
 router.use(auth)
 
@@ -28,12 +32,19 @@ router.post('/clients', clientsCtrl.create)
 router.put('/clients/:id', clientsCtrl.update)
 router.delete('/clients/:id', clientsCtrl.remove)
 router.get('/clients/:id/ca-auth-url', clientsCtrl.caAuthUrl)
+router.get('/clients/:id/credentials', clientsCtrl.getCredentials)
 
 // Recipients
 router.get('/clients/:clientId/recipients', recipientsCtrl.listByClient)
 router.post('/clients/:clientId/recipients', recipientsCtrl.create)
 router.put('/recipients/:id', recipientsCtrl.update)
 router.delete('/recipients/:id', recipientsCtrl.remove)
+
+// Schedules
+router.get('/clients/:clientId/schedules', schedulesCtrl.list)
+router.post('/clients/:clientId/schedules', schedulesCtrl.create)
+router.put('/schedules/:id', schedulesCtrl.update)
+router.delete('/schedules/:id', schedulesCtrl.remove)
 
 // Reports
 router.post('/reports/generate', reportsCtrl.generate)

@@ -14,11 +14,11 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(value || 0)
 }
 
-function buildMessage(clientName, startDate, endDate, entradas, saidas, saldo) {
+function buildMessage(recipientName, startDate, endDate, entradas, saidas, saldo) {
   const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
-  return `Olá, ${clientName}!
+  return `Olá, ${recipientName}!
 
-Segue o fechamento financeiro referente ao período de ${fmt(startDate)} até ${fmt(endDate)}, conforme os dados fornecidos pelo cliente:
+Segue o fechamento financeiro referente ao período de ${fmt(startDate)} até ${fmt(endDate)}, conforme os lançamentos registrados no Conta Azul:
 
 📈 Entradas: R$ ${formatCurrency(entradas)}
 📉 Saídas: R$ ${formatCurrency(saidas)}
@@ -73,6 +73,7 @@ async function generate(req, res) {
     const saidas = pagar.reduce((sum, i) => sum + (i.total || 0), 0)
     const saldo = entradas - saidas
 
+    // Mensagem de preview usa nome do cliente — será substituída por destinatário no envio
     const message = buildMessage(client.name, period_start, period_end, entradas, saidas, saldo)
 
     res.json({
@@ -111,10 +112,13 @@ async function send(req, res) {
   const results = []
 
   for (const r of recipients) {
+    // Gera mensagem personalizada com nome do destinatário
+    const personalizedMessage = buildMessage(r.name, period_start, period_end, entradas, saidas, saldo)
+
     try {
       await axios.post(
         `${ZAP_BASE}/api/send/${r.phone}`,
-        { body: message, connectionFrom },
+        { body: personalizedMessage, connectionFrom },
         { headers: zapHeaders() }
       )
       results.push({ phone: r.phone, name: r.name, status: 'sent' })

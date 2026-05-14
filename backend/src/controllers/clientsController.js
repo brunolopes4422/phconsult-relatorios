@@ -30,6 +30,16 @@ async function getPublicClient(req, res) {
   res.json(data)
 }
 
+async function getCredentials(req, res) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('ca_access_token, ca_refresh_token, ca_token_expires_at, ca_connected')
+    .eq('id', req.params.id)
+    .single()
+  if (error) return res.status(404).json({ error: 'Cliente não encontrado' })
+  res.json(data)
+}
+
 async function create(req, res) {
   const { name, status } = req.body
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' })
@@ -97,7 +107,6 @@ async function caCallback(req, res) {
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
 
-    // Busca dados da empresa conectada
     const { data: empresa } = await axios.get(
       'https://api-v2.contaazul.com/v1/pessoas/conta-conectada',
       { headers: { Authorization: `Bearer ${tokens.access_token}` } }
@@ -180,4 +189,4 @@ async function getValidToken(clientId) {
   return client.ca_access_token
 }
 
-module.exports = { list, get, create, update, remove, caAuthUrl, caCallback, getValidToken, getPublicClient }
+module.exports = { list, get, create, update, remove, caAuthUrl, caCallback, getValidToken, getPublicClient, getCredentials }
