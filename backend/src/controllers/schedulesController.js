@@ -37,24 +37,33 @@ function getPeriod(periodType) {
 
 function shouldRun(schedule) {
   const now = new Date()
-  const [hour] = schedule.send_time.split(':').map(Number)
-  const nowHour = now.getUTCHours() - 3
-  const nowDay = now.getDay()
-  const nowDate = now.getDate()
+  // Converte para horário de Brasília (UTC-3)
+  const nowBR = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const [schedHour, schedMin] = schedule.send_time.split(':').map(Number)
+  const nowHour = nowBR.getUTCHours()
+  const nowMin = nowBR.getUTCMinutes()
+  const nowDay = nowBR.getUTCDay()
+  const nowDate = nowBR.getUTCDate()
 
-  if (nowHour !== hour) return false
+  // Verifica se está dentro da janela de execução (até 20 min após o horário)
+  const schedTotalMin = schedHour * 60 + schedMin
+  const nowTotalMin = nowHour * 60 + nowMin
+  const diff = nowTotalMin - schedTotalMin
+  if (diff < 0 || diff > 20) return false
 
+  // Verifica se já rodou hoje
   if (schedule.last_run) {
     const lastRun = new Date(schedule.last_run)
-    const lastRunDate = lastRun.toISOString().split('T')[0]
-    const todayStr = now.toISOString().split('T')[0]
-    if (lastRunDate === todayStr) return false
+    const lastRunDateBR = new Date(lastRun.getTime() - 3 * 60 * 60 * 1000)
+    const lastRunStr = lastRunDateBR.toISOString().split('T')[0]
+    const todayStr = nowBR.toISOString().split('T')[0]
+    if (lastRunStr === todayStr) return false
   }
 
   if (schedule.frequency === 'daily_morning' || schedule.frequency === 'daily_evening') return true
-  if (schedule.frequency === 'weekly') return nowDay === (schedule.day_of_week || 5)
-  if (schedule.frequency === 'biweekly') return nowDate === 15 || nowDate === (schedule.day_of_month || 30)
-  if (schedule.frequency === 'monthly') return nowDate === (schedule.day_of_month || 1)
+  if (schedule.frequency === 'weekly') return nowDay === (schedule.day_of_week ?? 5)
+  if (schedule.frequency === 'biweekly') return nowDate === 15 || nowDate === (schedule.day_of_month ?? 30)
+  if (schedule.frequency === 'monthly') return nowDate === (schedule.day_of_month ?? 1)
   return false
 }
 
