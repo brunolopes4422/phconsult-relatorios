@@ -1,43 +1,30 @@
 const supabase = require('../lib/supabase')
-const axios = require('axios')
-const { getValidToken } = require('./clientsController')
-
-const CA_BASE = 'https://api-v2.contaazul.com'
-const ZAP_BASE = process.env.ZAP_BASE_URL
-const ZAP_KEY = process.env.ZAP_API_KEY
-
-function zapHeaders() {
-  return { Authorization: `Bearer ${ZAP_KEY}` }
-}
-
-function formatCurrency(value) {
-  return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(value || 0)
-}
+const { generate: generateReport, send: sendReport } = require('./reportsController')
 
 function getPeriod(periodType) {
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
+  const nowBR = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const today = nowBR.toISOString().split('T')[0]
 
   if (periodType === 'day') {
     return { start: today, end: today }
   }
   if (periodType === 'week') {
-    const start = new Date(now)
-    start.setDate(now.getDate() - 7)
+    const start = new Date(nowBR)
+    start.setDate(nowBR.getDate() - 7)
     return { start: start.toISOString().split('T')[0], end: today }
   }
   if (periodType === 'biweek') {
-    const start = new Date(now)
-    start.setDate(now.getDate() - 15)
+    const start = new Date(nowBR)
+    start.setDate(nowBR.getDate() - 15)
     return { start: start.toISOString().split('T')[0], end: today }
   }
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const start = new Date(nowBR.getFullYear(), nowBR.getMonth(), 1)
   return { start: start.toISOString().split('T')[0], end: today }
 }
 
 function shouldRun(schedule) {
   const now = new Date()
-  // Converte para horário de Brasília (UTC-3)
   const nowBR = new Date(now.getTime() - 3 * 60 * 60 * 1000)
   const [schedHour, schedMin] = schedule.send_time.split(':').map(Number)
   const nowHour = nowBR.getUTCHours()
@@ -45,17 +32,15 @@ function shouldRun(schedule) {
   const nowDay = nowBR.getUTCDay()
   const nowDate = nowBR.getUTCDate()
 
-  // Verifica se está dentro da janela de execução (até 20 min após o horário)
   const schedTotalMin = schedHour * 60 + schedMin
   const nowTotalMin = nowHour * 60 + nowMin
   const diff = nowTotalMin - schedTotalMin
   if (diff < 0 || diff > 20) return false
 
-  // Verifica se já rodou hoje
   if (schedule.last_run) {
     const lastRun = new Date(schedule.last_run)
-    const lastRunDateBR = new Date(lastRun.getTime() - 3 * 60 * 60 * 1000)
-    const lastRunStr = lastRunDateBR.toISOString().split('T')[0]
+    const lastRunBR = new Date(lastRun.getTime() - 3 * 60 * 60 * 1000)
+    const lastRunStr = lastRunBR.toISOString().split('T')[0]
     const todayStr = nowBR.toISOString().split('T')[0]
     if (lastRunStr === todayStr) return false
   }
@@ -67,94 +52,58 @@ function shouldRun(schedule) {
   return false
 }
 
-async function fetchAllPages(url, token, params) {
-  let page = 1
-  let all = []
-  while (true) {
-    const { data } = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      params: { ...params, pagina: page, tamanho_pagina: 100 }
-    })
-    const items = data?.itens || data?.content || data || []
-    if (!Array.isArray(items) || items.length === 0) break
-    all = all.concat(items)
-    if (items.length < 100) break
-    page++
-  }
-  return all
-}
+async function executeSchedule(schedule) {
+  const { client_id, period_type, clients } = schedule
+  const { start, end } = getPeriod(period_type)
 
-async function executeForClient(clientId, clientName, periodType) {
-  const token = await getValidToken(clientId)
-  const { start, end } = getPeriod(periodType)
-  const params = { data_vencimento_de: start, data_vencimento_ate: end }
-
-  const [receber, pagar] = await Promise.all([
-    fetchAllPages(`${CA_BASE}/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, token, params),
-    fetchAllPages(`${CA_BASE}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, token, params),
-  ])
-
-  const entradas = receber.reduce((sum, i) => sum + (i.total || 0), 0)
-  const saidas = pagar.reduce((sum, i) => sum + (i.total || 0), 0)
-  const saldo = entradas - saidas
-
+  // Busca destinatários ativos
   const { data: recipients } = await supabase
     .from('recipients')
     .select('*')
-    .eq('client_id', clientId)
+    .eq('client_id', client_id)
     .eq('active', true)
 
   if (!recipients || recipients.length === 0) {
     return { status: 'skipped', reason: 'sem destinatários' }
   }
 
-  const { data: configRow } = await supabase
-    .from('config')
-    .select('value')
-    .eq('key', 'zap_connection_id')
-    .single()
-
-  const connectionFrom = configRow?.value
-  if (!connectionFrom) {
-    return { status: 'skipped', reason: 'sem conexão WhatsApp' }
-  }
-
-  const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
-
-  for (const r of recipients) {
-    const message = `Olá, ${r.name}!
-
-Segue o fechamento financeiro referente ao período de ${fmt(start)} até ${fmt(end)}, conforme os lançamentos registrados no Conta Azul:
-
-📈 Entradas: R$ ${formatCurrency(entradas)}
-📉 Saídas: R$ ${formatCurrency(saidas)}
-💰 Saldo final: R$ ${formatCurrency(saldo)}
-
-Atenciosamente,
-Equipe PH Consult Pro`
-
-    await axios.post(
-      `${ZAP_BASE}/api/send/${r.phone}`,
-      { body: message, connectionFrom },
-      { headers: zapHeaders() }
-    )
-  }
-
-  const historyMessage = `Fechamento de ${fmt(start)} até ${fmt(end)}\n📈 Entradas: R$ ${formatCurrency(entradas)}\n📉 Saídas: R$ ${formatCurrency(saidas)}\n💰 Saldo: R$ ${formatCurrency(saldo)}`
-
-  await supabase.from('report_history').insert({
-    client_id: clientId,
-    period_start: start,
-    period_end: end,
-    entradas,
-    saidas,
-    saldo,
-    message: historyMessage,
-    send_status: 'sent',
-    sent_at: new Date().toISOString(),
+  // Usa o mesmo motor do reportsController — simula req/res
+  const reportData = await new Promise((resolve, reject) => {
+    const req = {
+      body: {
+        client_id,
+        period_start: start,
+        period_end: end,
+      }
+    }
+    const res = {
+      json: (data) => resolve(data),
+      status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
+    }
+    generateReport(req, res)
   })
 
-  return { status: 'sent', entradas, saidas, saldo, recipients: recipients.length }
+  // Envia para cada destinatário
+  const sendData = await new Promise((resolve, reject) => {
+    const req = {
+      body: {
+        ...reportData,
+        recipients,
+      }
+    }
+    const res = {
+      json: (data) => resolve(data),
+      status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
+    }
+    sendReport(req, res)
+  })
+
+  return {
+    status: sendData.send_status,
+    entradas: reportData.entradas,
+    saidas: reportData.saidas,
+    recipients: recipients.length,
+  }
 }
 
 async function runCron(req, res) {
@@ -165,24 +114,35 @@ async function runCron(req, res) {
 
   const { data: schedules } = await supabase
     .from('schedules')
-    .select('*, clients(id, name, ca_connected)')
+    .select('*, clients(id, name, ca_connected, integration_type, omie_app_key)')
     .eq('active', true)
 
   console.log('CRON schedules found:', schedules?.length)
-  if (schedules?.length > 0) console.log('CRON schedule[0]:', JSON.stringify(schedules[0]))
 
   const results = []
+
   for (const schedule of schedules || []) {
-    if (!shouldRun(schedule)) continue
-    if (!schedule.clients?.ca_connected) continue
+    if (!shouldRun(schedule)) {
+      console.log(`CRON skip ${schedule.clients?.name}: shouldRun=false`)
+      continue
+    }
+
+    const client = schedule.clients
+    const clientOk = client?.ca_connected || (client?.integration_type === 'omie' && client?.omie_app_key)
+    if (!clientOk) {
+      console.log(`CRON skip ${client?.name}: cliente não conectado`)
+      continue
+    }
 
     try {
-      const result = await executeForClient(schedule.client_id, schedule.clients.name, schedule.period_type)
+      console.log(`CRON running for ${client.name}...`)
+      const result = await executeSchedule(schedule)
       await supabase.from('schedules').update({ last_run: new Date().toISOString() }).eq('id', schedule.id)
-      results.push({ client: schedule.clients.name, ...result })
+      results.push({ client: client.name, ...result })
+      console.log(`CRON done for ${client.name}:`, result.status)
     } catch (err) {
-      console.error(`Cron error for ${schedule.clients?.name}:`, err.message)
-      results.push({ client: schedule.clients?.name, status: 'error', error: err.message })
+      console.error(`CRON error for ${client?.name}:`, err.message)
+      results.push({ client: client?.name, status: 'error', error: err.message })
     }
   }
 
@@ -195,12 +155,14 @@ async function runClient(req, res) {
 
   const { data: client } = await supabase
     .from('clients')
-    .select('id, name, ca_connected')
+    .select('id, name, ca_connected, integration_type, omie_app_key')
     .eq('id', client_id)
     .single()
 
   if (!client) return res.status(404).json({ error: 'Cliente não encontrado' })
-  if (!client.ca_connected) return res.status(400).json({ error: 'Cliente não conectado ao Conta Azul' })
+
+  const clientOk = client.ca_connected || (client.integration_type === 'omie' && client.omie_app_key)
+  if (!clientOk) return res.status(400).json({ error: 'Cliente não conectado' })
 
   const { data: schedules } = await supabase
     .from('schedules')
@@ -212,10 +174,12 @@ async function runClient(req, res) {
     return res.status(400).json({ error: 'Nenhum agendamento ativo para este cliente' })
   }
 
+  const schedule = { ...schedules[0], clients: client }
+
   try {
-    const result = await executeForClient(client_id, client.name, schedules[0].period_type)
+    const result = await executeSchedule(schedule)
     await supabase.from('schedules').update({ last_run: new Date().toISOString() }).eq('client_id', client_id)
-    res.json({ message: `Relatório enviado com sucesso para ${result.recipients} destinatário(s)`, ...result })
+    res.json({ message: `Relatório enviado para ${result.recipients} destinatário(s)`, ...result })
   } catch (err) {
     console.error('runClient error:', err.message)
     res.status(500).json({ error: err.message })
