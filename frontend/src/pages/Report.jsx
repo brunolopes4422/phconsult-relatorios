@@ -105,21 +105,33 @@ export default function Report() {
       {/* Report preview */}
       {report && (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          {/* Cards */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="card p-5 border-l-4 border-emerald-500">
-              <p className="text-sm text-slate-500">📈 Entradas</p>
+              <p className="text-sm text-slate-500">📈 Entradas no período</p>
               <p className="text-2xl font-bold text-emerald-600 mt-1">R$ {fmt(report.entradas)}</p>
               <p className="text-xs text-slate-400 mt-1">{report.raw?.receber_count} registros</p>
             </div>
             <div className="card p-5 border-l-4 border-red-400">
-              <p className="text-sm text-slate-500">📉 Saídas</p>
+              <p className="text-sm text-slate-500">📉 Saídas no período</p>
               <p className="text-2xl font-bold text-red-500 mt-1">R$ {fmt(report.saidas)}</p>
               <p className="text-xs text-slate-400 mt-1">{report.raw?.pagar_count} registros</p>
             </div>
-            <div className="card p-5 border-l-4 border-brand-500">
-              <p className="text-sm text-slate-500">💰 Saldo</p>
-              <p className={`text-2xl font-bold mt-1 ${report.saldo >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="card p-5 border-l-4 border-slate-400">
+              <p className="text-sm text-slate-500">📊 Resultado do período</p>
+              <p className={`text-2xl font-bold mt-1 ${report.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 R$ {fmt(report.saldo)}
+              </p>
+            </div>
+            <div className="card p-5 border-l-4 border-brand-500">
+              <p className="text-sm text-slate-500">💰 Saldo em conta</p>
+              <p className={`text-2xl font-bold mt-1 ${(report.saldoAtual || 0) >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
+                R$ {fmt(report.saldoAtual)}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Anterior R$ {fmt(report.saldoAnterior)} + resultado
               </p>
             </div>
           </div>
@@ -129,7 +141,7 @@ export default function Report() {
             <h2 className="font-semibold text-slate-800 mb-4">Mensagem (editável)</h2>
             <textarea
               className="input font-mono text-sm"
-              rows={12}
+              rows={14}
               value={message}
               onChange={e => setMessage(e.target.value)}
             />
