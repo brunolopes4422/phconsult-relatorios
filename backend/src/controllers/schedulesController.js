@@ -168,8 +168,10 @@ async function runCron(req, res) {
     .select('*, clients(id, name, ca_connected)')
     .eq('active', true)
 
-  const results = []
+  console.log('CRON schedules found:', schedules?.length)
+  if (schedules?.length > 0) console.log('CRON schedule[0]:', JSON.stringify(schedules[0]))
 
+  const results = []
   for (const schedule of schedules || []) {
     if (!shouldRun(schedule)) continue
     if (!schedule.clients?.ca_connected) continue
