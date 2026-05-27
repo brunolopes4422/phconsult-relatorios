@@ -6,12 +6,19 @@ function fmt(v) {
   return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2 }).format(v || 0)
 }
 
+function getYesterday() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().split('T')[0]
+}
+
 export default function Report() {
   const { clientId } = useParams()
   const navigate = useNavigate()
 
   const today = new Date().toISOString().split('T')[0]
   const firstOfMonth = today.slice(0, 8) + '01'
+  const yesterday = getYesterday()
 
   const [period, setPeriod] = useState({ start: firstOfMonth, end: today })
   const [report, setReport] = useState(null)
@@ -22,6 +29,8 @@ export default function Report() {
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState(null)
   const [client, setClient] = useState(null)
+
+  const isPagamentosDia = client?.report_model === 'pagamentos_dia'
 
   useEffect(() => {
     api.get(`/clients/${clientId}`).then(({ data }) => setClient(data))
@@ -38,8 +47,8 @@ export default function Report() {
     try {
       const { data } = await api.post('/reports/generate', {
         client_id: clientId,
-        period_start: period.start,
-        period_end: period.end,
+        period_start: isPagamentosDia ? yesterday : period.start,
+        period_end: isPagamentosDia ? yesterday : period.end,
       })
       setReport(data)
       setMessage(data.message)
@@ -73,6 +82,8 @@ export default function Report() {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   }
 
+  const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
+
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-2">
@@ -86,55 +97,80 @@ export default function Report() {
 
       {/* Period selector */}
       <div className="card p-6 mb-6">
-        <h2 className="font-semibold text-slate-800 mb-4">Período</h2>
-        <div className="flex gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Data inicial</label>
-            <input className="input" type="date" value={period.start} onChange={e => setPeriod(p => ({ ...p, start: e.target.value }))} />
+        {isPagamentosDia ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-800">Pagamentos do dia anterior</h2>
+              <p className="text-sm text-slate-500 mt-1">Referência: <span className="font-medium text-slate-700">{fmtDate(yesterday)}</span></p>
+            </div>
+            <button className="btn-primary" onClick={generate} disabled={generating}>
+              {generating ? '⏳ Buscando...' : '🔍 Buscar dados'}
+            </button>
           </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Data final</label>
-            <input className="input" type="date" value={period.end} onChange={e => setPeriod(p => ({ ...p, end: e.target.value }))} />
-          </div>
-          <button className="btn-primary" onClick={generate} disabled={generating}>
-            {generating ? '⏳ Buscando...' : '🔍 Buscar dados'}
-          </button>
-        </div>
+        ) : (
+          <>
+            <h2 className="font-semibold text-slate-800 mb-4">Período</h2>
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Data inicial</label>
+                <input className="input" type="date" value={period.start} onChange={e => setPeriod(p => ({ ...p, start: e.target.value }))} />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Data final</label>
+                <input className="input" type="date" value={period.end} onChange={e => setPeriod(p => ({ ...p, end: e.target.value }))} />
+              </div>
+              <button className="btn-primary" onClick={generate} disabled={generating}>
+                {generating ? '⏳ Buscando...' : '🔍 Buscar dados'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Report preview */}
       {report && (
         <>
-          {/* Cards */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="card p-5 border-l-4 border-emerald-500">
-              <p className="text-sm text-slate-500">📈 Entradas no período</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">R$ {fmt(report.entradas)}</p>
-              <p className="text-xs text-slate-400 mt-1">{report.raw?.receber_count} registros</p>
-            </div>
-            <div className="card p-5 border-l-4 border-red-400">
-              <p className="text-sm text-slate-500">📉 Saídas no período</p>
+          {!isPagamentosDia && (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="card p-5 border-l-4 border-emerald-500">
+                  <p className="text-sm text-slate-500">📈 Entradas no período</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">R$ {fmt(report.entradas)}</p>
+                  <p className="text-xs text-slate-400 mt-1">{report.raw?.receber_count} registros</p>
+                </div>
+                <div className="card p-5 border-l-4 border-red-400">
+                  <p className="text-sm text-slate-500">📉 Saídas no período</p>
+                  <p className="text-2xl font-bold text-red-500 mt-1">R$ {fmt(report.saidas)}</p>
+                  <p className="text-xs text-slate-400 mt-1">{report.raw?.pagar_count} registros</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="card p-5 border-l-4 border-slate-400">
+                  <p className="text-sm text-slate-500">📊 Resultado do período</p>
+                  <p className={`text-2xl font-bold mt-1 ${report.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    R$ {fmt(report.saldo)}
+                  </p>
+                </div>
+                <div className="card p-5 border-l-4 border-brand-500">
+                  <p className="text-sm text-slate-500">💰 Saldo em conta</p>
+                  <p className={`text-2xl font-bold mt-1 ${(report.saldoAtual || 0) >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
+                    R$ {fmt(report.saldoAtual)}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Anterior R$ {fmt(report.saldoAnterior)} + resultado
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {isPagamentosDia && (
+            <div className="card p-5 border-l-4 border-red-400 mb-6">
+              <p className="text-sm text-slate-500">💸 Total pago em {fmtDate(yesterday)}</p>
               <p className="text-2xl font-bold text-red-500 mt-1">R$ {fmt(report.saidas)}</p>
-              <p className="text-xs text-slate-400 mt-1">{report.raw?.pagar_count} registros</p>
+              <p className="text-xs text-slate-400 mt-1">{report.raw?.pagar_count} pagamentos</p>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="card p-5 border-l-4 border-slate-400">
-              <p className="text-sm text-slate-500">📊 Resultado do período</p>
-              <p className={`text-2xl font-bold mt-1 ${report.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                R$ {fmt(report.saldo)}
-              </p>
-            </div>
-            <div className="card p-5 border-l-4 border-brand-500">
-              <p className="text-sm text-slate-500">💰 Saldo em conta</p>
-              <p className={`text-2xl font-bold mt-1 ${(report.saldoAtual || 0) >= 0 ? 'text-brand-600' : 'text-red-600'}`}>
-                R$ {fmt(report.saldoAtual)}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                Anterior R$ {fmt(report.saldoAnterior)} + resultado
-              </p>
-            </div>
-          </div>
+          )}
 
           {/* Message editor */}
           <div className="card p-6 mb-6">

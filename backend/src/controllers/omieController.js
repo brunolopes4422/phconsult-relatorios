@@ -35,7 +35,7 @@ async function fetchExtrato(appKey, appSecret, periodStart, periodEnd, contaId) 
 
 async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, accountIds) {
   if (!accountIds || accountIds.length === 0) {
-    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, receber_count: 0, pagar_count: 0 }
+    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, saldoAtual: 0, receber_count: 0, pagar_count: 0, pagamentos: [] }
   }
 
   let totalEntradas = 0
@@ -43,23 +43,25 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
   let totalSaldoAnterior = 0
   let receber_count = 0
   let pagar_count = 0
+  let pagamentos = []
 
   for (const contaId of accountIds) {
     await sleep(2000)
 
     const data = await fetchExtrato(appKey, appSecret, periodStart, periodEnd, Number(contaId))
 
-    // Saldo anterior do período
     totalSaldoAnterior += data?.nSaldoAnterior || 0
 
     const movimentos = data?.listaMovimentos || []
-    console.log(`OMIE EXTRATO [${contaId}]: saldoAnterior=${data?.nSaldoAnterior}, movimentos=${movimentos.length}`)
-    if (movimentos.length > 1) console.log('MOVIMENTO SAMPLE:', JSON.stringify(movimentos[1]))
 
     for (const m of movimentos) {
-      // Ignora previsto, vence hoje e saldo anterior
+      if (m.cDesCliente?.includes('Transf')) console.log('TRANSF SAMPLE:', JSON.stringify(m))
       const situacao = m.cSituacao || ''
       if (situacao === 'Previsto' || situacao === 'Vence hoje' || !m.cNatureza) continue
+
+      // Ignora transferências entre contas (origem TRAN)
+      const origem = m.cOrigem || ''
+      if (origem.includes('Transferência')) continue
 
       const valor = Math.abs(m.nValorDocumento || 0)
       const natureza = m.cNatureza || ''
@@ -70,6 +72,10 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
       } else if (natureza === 'P') {
         totalSaidas += valor
         pagar_count++
+        pagamentos.push({
+          nome: m.cDesCliente || 'Sem descrição',
+          valor,
+        })
       }
     }
   }
@@ -84,6 +90,7 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
     saldoAtual,
     receber_count,
     pagar_count,
+    pagamentos,
   }
 }
 

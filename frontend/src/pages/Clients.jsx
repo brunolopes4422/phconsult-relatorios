@@ -55,7 +55,7 @@ export default function Clients() {
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500">Gerencie os clientes e conexões financeiras</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active', integration_type: 'conta_azul', omie_app_key: '', omie_app_secret: '' })}>
+        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active', integration_type: 'conta_azul', omie_app_key: '', omie_app_secret: '', report_model: 'fechamento' })}>
           + Novo cliente
         </button>
       </div>
@@ -113,7 +113,15 @@ export default function Clients() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="btn-secondary text-sm" onClick={() => setModal({ id: c.id, name: c.name, status: c.status, integration_type: c.integration_type || 'conta_azul', omie_app_key: c.omie_app_key || '', omie_app_secret: c.omie_app_secret || '' })}>
+                      <button className="btn-secondary text-sm" onClick={() => setModal({
+                        id: c.id,
+                        name: c.name,
+                        status: c.status,
+                        integration_type: c.integration_type || 'conta_azul',
+                        omie_app_key: c.omie_app_key || '',
+                        omie_app_secret: c.omie_app_secret || '',
+                        report_model: c.report_model || 'fechamento'
+                      })}>
                         Editar
                       </button>
                       <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => remove(c.id, c.name)}>
@@ -154,6 +162,13 @@ export default function Clients() {
                 <select className="input" value={modal.integration_type} onChange={e => setModal(m => ({ ...m, integration_type: e.target.value }))}>
                   <option value="conta_azul">Conta Azul</option>
                   <option value="omie">Omie</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo de relatório</label>
+                <select className="input" value={modal.report_model || 'fechamento'} onChange={e => setModal(m => ({ ...m, report_model: e.target.value }))}>
+                  <option value="fechamento">Fechamento financeiro</option>
+                  <option value="pagamentos_dia">Pagamentos do dia anterior</option>
                 </select>
               </div>
               {modal.integration_type === 'omie' && (

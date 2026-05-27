@@ -45,6 +45,28 @@ Atenciosamente,
 Equipe PH Consult Pro`
 }
 
+function buildMessagePagamentosDia(recipientName, date, saidas, pagamentos) {
+  const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
+
+  const lista = pagamentos.length > 0
+    ? pagamentos
+        .sort((a, b) => b.valor - a.valor)
+        .map((p, i) => `${i + 1}. ${p.nome} - R$ ${formatCurrency(p.valor)}`)
+        .join('\n')
+    : 'Nenhum pagamento realizado'
+
+  return `Olá, ${recipientName}!
+
+💸 Pagamentos realizados em ${fmt(date)}:
+
+${lista}
+
+💰 Total pago: R$ ${formatCurrency(saidas)}
+
+Atenciosamente,
+Equipe PH Consult Pro`
+}
+
 function buildMessageCA(recipientName, startDate, endDate, entradas, saidas, topReceitas, topDespesas) {
   const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
 
@@ -121,12 +143,10 @@ async function fetchCAReceberPagar(token, period_start, period_end, selectedAcco
   if (selectedAccounts.length > 0) {
     for (const accId of selectedAccounts) {
       const params = { ...baseParams, ids_contas_financeiras: accId }
-      
       const r = await fetchAllPages(`${CA_BASE}/v1/financeiro/eventos-financeiros/contas-a-receber/buscar`, token, { ...params, 'status[]': ['RECEBIDO'] })
       await new Promise(resolve => setTimeout(resolve, 500))
       const p = await fetchAllPages(`${CA_BASE}/v1/financeiro/eventos-financeiros/contas-a-pagar/buscar`, token, { ...params, 'status[]': ['PAGO'] })
       await new Promise(resolve => setTimeout(resolve, 500))
-      
       receber = receber.concat(r)
       pagar = pagar.concat(p)
     }
@@ -149,7 +169,7 @@ async function generate(req, res) {
 
   const { data: client } = await supabase
     .from('clients')
-    .select('id, name, ca_connected, integration_type, omie_app_key, omie_app_secret')
+    .select('id, name, ca_connected, integration_type, omie_app_key, omie_app_secret, report_model')
     .eq('id', client_id)
     .single()
 
@@ -176,7 +196,12 @@ async function generate(req, res) {
       saldoAnterior = result.saldoAnterior || 0
       saldoAtual = result.saldoAtual || (saldoAnterior + (entradas - saidas))
       raw = { receber_count: result.receber_count, pagar_count: result.pagar_count }
-      message = buildMessageOmie(client.name, period_start, period_end, entradas, saidas, entradas - saidas, saldoAnterior, saldoAtual)
+
+      if (client.report_model === 'pagamentos_dia') {
+        message = buildMessagePagamentosDia(client.name, period_end, saidas, result.pagamentos || [])
+      } else {
+        message = buildMessageOmie(client.name, period_start, period_end, entradas, saidas, entradas - saidas, saldoAnterior, saldoAtual)
+      }
 
     } else {
       if (!client.ca_connected) return res.status(400).json({ error: 'Cliente não conectado ao Conta Azul' })
@@ -184,16 +209,9 @@ async function generate(req, res) {
 
       const { receber, pagar } = await fetchCAReceberPagar(token, period_start, period_end, selectedAccounts)
 
-      const transParams = {
-        data_inicio: period_start,
-        data_fim: period_end,
-      }
-      if (selectedAccounts.length > 0) {
-        transParams.ids_conta_financeira = selectedAccounts
-      }
+      const transParams = { data_inicio: period_start, data_fim: period_end }
+      if (selectedAccounts.length > 0) transParams.ids_conta_financeira = selectedAccounts
       const transferencias = await fetchAllPages(`${CA_BASE}/v1/financeiro/transferencias`, token, transParams)
-
-      console.log('RECEBER COUNT:', receber.length, 'PAGAR COUNT:', pagar.length, 'TRANS COUNT:', transferencias.length)
 
       let transEntradasValor = 0
       let transSaidasValor = 0
