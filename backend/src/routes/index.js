@@ -8,6 +8,11 @@ const usersCtrl = require('../controllers/usersController')
 const configCtrl = require('../controllers/configController')
 const schedulesCtrl = require('../controllers/schedulesController')
 const accountsCtrl = require('../controllers/accountsController')
+const jobsCtrl = require('../controllers/jobsController')
+
+
+// routerjobs
+router.get('/jobs', jobsCtrl.list)
 
 // Auth (public)
 router.get('/setup/status', authCtrl.setupStatus)

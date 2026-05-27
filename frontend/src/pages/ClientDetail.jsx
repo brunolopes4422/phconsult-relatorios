@@ -492,15 +492,14 @@ export default function ClientDetail() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Frequência</label>
                 <select className="input" value={modalS.frequency} onChange={e => setModalS(m => ({ ...m, frequency: e.target.value }))}>
-                  <option value="daily_morning">Todo dia — manhã</option>
-                  <option value="daily_evening">Todo dia — fim do dia</option>
-                  <option value="weekly">Semanal</option>
-                  <option value="biweekly">Quinzenal</option>
-                  <option value="monthly">Mensal</option>
+                  <option value="daily_morning">Diário — todo dia</option>
+                  <option value="weekly">Semanal — toda semana</option>
+                  <option value="biweekly">Quinzenal — duas vezes ao mês</option>
+                  <option value="monthly">Mensal — uma vez ao mês</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Horário de envio</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Horário de envio (horário de Brasília)</label>
                 <input className="input" type="time" value={modalS.send_time} onChange={e => setModalS(m => ({ ...m, send_time: e.target.value }))} />
               </div>
               {modalS.frequency === 'weekly' && (
@@ -514,17 +513,24 @@ export default function ClientDetail() {
               {(modalS.frequency === 'monthly' || modalS.frequency === 'biweekly') && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Dia do mês</label>
-                  <input className="input" type="number" min="1" max="31" value={modalS.day_of_month} onChange={e => setModalS(m => ({ ...m, day_of_month: parseInt(e.target.value) }))} />
+                  <input className="input" type="number" min="1" max="28" value={modalS.day_of_month} onChange={e => setModalS(m => ({ ...m, day_of_month: parseInt(e.target.value) }))} />
+                  <p className="text-xs text-slate-400 mt-1">Use até o dia 28 para evitar problemas em fevereiro</p>
                 </div>
               )}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Período do relatório</label>
                 <select className="input" value={modalS.period_type} onChange={e => setModalS(m => ({ ...m, period_type: e.target.value }))}>
-                  <option value="day">Dia atual</option>
+                  <option value="day">Dia anterior</option>
                   <option value="week">Últimos 7 dias</option>
                   <option value="biweek">Últimos 15 dias</option>
                   <option value="month">Mês atual</option>
                 </select>
+                <p className="text-xs text-slate-400 mt-1">
+                  {modalS.period_type === 'day' && 'Relatório do dia anterior ao envio'}
+                  {modalS.period_type === 'week' && 'Relatório dos últimos 7 dias'}
+                  {modalS.period_type === 'biweek' && 'Relatório dos últimos 15 dias'}
+                  {modalS.period_type === 'month' && 'Relatório do mês atual até a data de envio'}
+                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">

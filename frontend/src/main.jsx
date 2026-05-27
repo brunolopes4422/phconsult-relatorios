@@ -12,6 +12,7 @@ import Clients from './pages/Clients'
 import ClientDetail from './pages/ClientDetail'
 import Report from './pages/Report'
 import History from './pages/History'
+import Jobs from './pages/Jobs'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
 import AuthCallback from './pages/AuthCallback'
@@ -39,6 +40,7 @@ function App() {
             <Route path="clients/:id" element={<ClientDetail />} />
             <Route path="report/:clientId" element={<Report />} />
             <Route path="history" element={<History />} />
+            <Route path="jobs" element={<Jobs />} />
             <Route path="settings" element={<Settings />} />
             <Route path="users" element={<PrivateRoute adminOnly><Users /></PrivateRoute>} />
           </Route>
