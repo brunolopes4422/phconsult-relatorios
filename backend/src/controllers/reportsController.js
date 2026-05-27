@@ -63,10 +63,11 @@ ${lista}
 
 💰 Total pago: R$ ${formatCurrency(saidas)}
 
+ℹ️ Valores referentes aos lançamentos registrados no sistema até as 23:59 de ${fmt(date)}.
+
 Atenciosamente,
 Equipe PH Consult Pro`
 }
-
 function buildMessageCA(recipientName, startDate, endDate, entradas, saidas, topReceitas, topDespesas) {
   const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
 
