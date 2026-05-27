@@ -13,6 +13,7 @@ const jobsCtrl = require('../controllers/jobsController')
 
 // routerjobs
 router.get('/jobs', jobsCtrl.list)
+router.get('/health', (req, res) => res.json({ ok: true }))
 
 // Auth (public)
 router.get('/setup/status', authCtrl.setupStatus)
