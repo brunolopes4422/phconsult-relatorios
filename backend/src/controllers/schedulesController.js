@@ -1,12 +1,18 @@
 const supabase = require('../lib/supabase')
 const { generate: generateReport, send: sendReport } = require('./reportsController')
 
-function getPeriod(periodType) {
+function getPeriod(periodType, reportModel) {
   const now = new Date()
   const nowBR = new Date(now.getTime() - 3 * 60 * 60 * 1000)
   const today = nowBR.toISOString().split('T')[0]
 
   if (periodType === 'day') {
+    if (reportModel === 'pagamentos_dia') {
+      const yesterday = new Date(nowBR)
+      yesterday.setDate(nowBR.getDate() - 1)
+      const y = yesterday.toISOString().split('T')[0]
+      return { start: y, end: y }
+    }
     return { start: today, end: today }
   }
   if (periodType === 'week') {
@@ -52,11 +58,13 @@ function shouldRun(schedule) {
   return false
 }
 
-async function executeSchedule(schedule) {
-  const { client_id, period_type, clients } = schedule
-  const { start, end } = getPeriod(period_type)
+async function processJob(job) {
+  const { id, client_id, period_start, period_end } = job
 
-  // Busca destinatários ativos
+  await supabase.from('job_queue')
+    .update({ status: 'processing', attempts: job.attempts + 1 })
+    .eq('id', id)
+
   const { data: recipients } = await supabase
     .from('recipients')
     .select('*')
@@ -64,45 +72,66 @@ async function executeSchedule(schedule) {
     .eq('active', true)
 
   if (!recipients || recipients.length === 0) {
-    return { status: 'skipped', reason: 'sem destinatários' }
+    await supabase.from('job_queue')
+      .update({ status: 'skipped', error: 'sem destinatários', processed_at: new Date().toISOString() })
+      .eq('id', id)
+    return { status: 'skipped' }
   }
 
-  // Usa o mesmo motor do reportsController — simula req/res
   const reportData = await new Promise((resolve, reject) => {
-    const req = {
-      body: {
-        client_id,
-        period_start: start,
-        period_end: end,
-      }
-    }
+    const req = { body: { client_id, period_start, period_end } }
     const res = {
-      json: (data) => resolve(data),
+      json: resolve,
       status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
     }
     generateReport(req, res)
   })
 
-  // Envia para cada destinatário
   const sendData = await new Promise((resolve, reject) => {
-    const req = {
-      body: {
-        ...reportData,
-        recipients,
-      }
-    }
+    const req = { body: { ...reportData, recipients } }
     const res = {
-      json: (data) => resolve(data),
+      json: resolve,
       status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
     }
     sendReport(req, res)
   })
 
-  return {
-    status: sendData.send_status,
-    entradas: reportData.entradas,
-    saidas: reportData.saidas,
-    recipients: recipients.length,
+  await supabase.from('job_queue')
+    .update({ status: 'sent', processed_at: new Date().toISOString() })
+    .eq('id', id)
+
+  return { status: sendData.send_status, recipients: recipients.length }
+}
+
+async function processQueue() {
+  const { data: jobs } = await supabase
+    .from('job_queue')
+    .select('*')
+    .in('status', ['pending', 'error'])
+    .lt('attempts', 3)
+    .order('created_at')
+
+  if (!jobs || jobs.length === 0) return
+
+  for (const job of jobs) {
+    try {
+      console.log(`QUEUE processing job ${job.id} for client ${job.client_id}...`)
+      const result = await processJob(job)
+      console.log(`QUEUE job ${job.id} done:`, result.status)
+
+      if (job.schedule_id) {
+        await supabase.from('schedules')
+          .update({ last_run: new Date().toISOString() })
+          .eq('id', job.schedule_id)
+      }
+    } catch (err) {
+      console.error(`QUEUE job ${job.id} error:`, err.message)
+      const newAttempts = job.attempts + 1
+      const newStatus = newAttempts >= 3 ? 'failed' : 'error'
+      await supabase.from('job_queue')
+        .update({ status: newStatus, error: err.message, attempts: newAttempts })
+        .eq('id', job.id)
+    }
   }
 }
 
@@ -114,18 +143,15 @@ async function runCron(req, res) {
 
   const { data: schedules } = await supabase
     .from('schedules')
-    .select('*, clients(id, name, ca_connected, integration_type, omie_app_key)')
+    .select('*, clients(id, name, ca_connected, integration_type, omie_app_key, report_model)')
     .eq('active', true)
 
   console.log('CRON schedules found:', schedules?.length)
 
-  const results = []
+  let queued = 0
 
   for (const schedule of schedules || []) {
-    if (!shouldRun(schedule)) {
-      console.log(`CRON skip ${schedule.clients?.name}: shouldRun=false`)
-      continue
-    }
+    if (!shouldRun(schedule)) continue
 
     const client = schedule.clients
     const clientOk = client?.ca_connected || (client?.integration_type === 'omie' && client?.omie_app_key)
@@ -134,19 +160,28 @@ async function runCron(req, res) {
       continue
     }
 
-    try {
-      console.log(`CRON running for ${client.name}...`)
-      const result = await executeSchedule(schedule)
-      await supabase.from('schedules').update({ last_run: new Date().toISOString() }).eq('id', schedule.id)
-      results.push({ client: client.name, ...result })
-      console.log(`CRON done for ${client.name}:`, result.status)
-    } catch (err) {
-      console.error(`CRON error for ${client?.name}:`, err.message)
-      results.push({ client: client?.name, status: 'error', error: err.message })
-    }
+    const { start, end } = getPeriod(schedule.period_type, client.report_model)
+
+    await supabase.from('job_queue').insert({
+      client_id: schedule.client_id,
+      schedule_id: schedule.id,
+      period_start: start,
+      period_end: end,
+      status: 'pending',
+      attempts: 0,
+    })
+
+    await supabase.from('schedules')
+      .update({ last_run: new Date().toISOString() })
+      .eq('id', schedule.id)
+
+    queued++
+    console.log(`CRON queued job for ${client.name} (${start} → ${end})`)
   }
 
-  res.json({ ran: results.length, results })
+  res.json({ queued, message: 'Jobs enfileirados, processando em background' })
+
+  processQueue().catch(err => console.error('QUEUE error:', err.message))
 }
 
 async function runClient(req, res) {
@@ -155,7 +190,7 @@ async function runClient(req, res) {
 
   const { data: client } = await supabase
     .from('clients')
-    .select('id, name, ca_connected, integration_type, omie_app_key')
+    .select('id, name, ca_connected, integration_type, omie_app_key, report_model')
     .eq('id', client_id)
     .single()
 
@@ -174,16 +209,21 @@ async function runClient(req, res) {
     return res.status(400).json({ error: 'Nenhum agendamento ativo para este cliente' })
   }
 
-  const schedule = { ...schedules[0], clients: client }
+  const schedule = schedules[0]
+  const { start, end } = getPeriod(schedule.period_type, client.report_model)
 
-  try {
-    const result = await executeSchedule(schedule)
-    await supabase.from('schedules').update({ last_run: new Date().toISOString() }).eq('client_id', client_id)
-    res.json({ message: `Relatório enviado para ${result.recipients} destinatário(s)`, ...result })
-  } catch (err) {
-    console.error('runClient error:', err.message)
-    res.status(500).json({ error: err.message })
-  }
+  const { data: job } = await supabase.from('job_queue').insert({
+    client_id,
+    schedule_id: schedule.id,
+    period_start: start,
+    period_end: end,
+    status: 'pending',
+    attempts: 0,
+  }).select().single()
+
+  res.json({ message: 'Job enfileirado, processando...', job_id: job.id })
+
+  processQueue().catch(err => console.error('QUEUE error:', err.message))
 }
 
 async function list(req, res) {
