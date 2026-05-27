@@ -179,7 +179,7 @@ async function runCron(req, res) {
     console.log(`CRON queued job for ${client.name} (${start} → ${end})`)
   }
 
-  res.json({ queued, message: 'Jobs enfileirados, processando em background' })
+  res.json({ queued, message: 'OK' })
 
   processQueue().catch(err => console.error('QUEUE error:', err.message))
 }
