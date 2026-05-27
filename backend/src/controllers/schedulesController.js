@@ -151,7 +151,10 @@ async function runCron(req, res) {
   let queued = 0
 
   for (const schedule of schedules || []) {
-    if (!shouldRun(schedule)) continue
+    if (!shouldRun(schedule)) {
+      console.log(`CRON skip ${schedule.clients?.name}: send_time=${schedule.send_time}, shouldRun=false`)
+      continue
+    }
 
     const client = schedule.clients
     const clientOk = client?.ca_connected || (client?.integration_type === 'omie' && client?.omie_app_key)
