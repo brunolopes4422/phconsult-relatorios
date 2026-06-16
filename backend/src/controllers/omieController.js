@@ -35,7 +35,7 @@ async function fetchExtrato(appKey, appSecret, periodStart, periodEnd, contaId) 
 
 async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, accountIds) {
   if (!accountIds || accountIds.length === 0) {
-    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, saldoAtual: 0, receber_count: 0, pagar_count: 0, pagamentos: [] }
+    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, saldoAtual: 0, receber_count: 0, pagar_count: 0, pagamentos: [], recebimentos: [] }
   }
 
   let totalEntradas = 0
@@ -44,6 +44,7 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
   let receber_count = 0
   let pagar_count = 0
   let pagamentos = []
+  let recebimentos = []
 
   for (const contaId of accountIds) {
     await sleep(2000)
@@ -55,11 +56,9 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
     const movimentos = data?.listaMovimentos || []
 
     for (const m of movimentos) {
-      if (m.cDesCliente?.includes('Transf')) console.log('TRANSF SAMPLE:', JSON.stringify(m))
       const situacao = m.cSituacao || ''
       if (situacao === 'Previsto' || situacao === 'Vence hoje' || !m.cNatureza) continue
 
-      // Ignora transferências entre contas (origem TRAN)
       const origem = m.cOrigem || ''
       if (origem.includes('Transferência')) continue
 
@@ -69,6 +68,10 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
       if (natureza === 'R') {
         totalEntradas += valor
         receber_count++
+        recebimentos.push({
+          nome: m.cDesCliente || 'Sem descrição',
+          valor,
+        })
       } else if (natureza === 'P') {
         totalSaidas += valor
         pagar_count++
@@ -91,6 +94,7 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
     receber_count,
     pagar_count,
     pagamentos,
+    recebimentos,
   }
 }
 

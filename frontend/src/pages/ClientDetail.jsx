@@ -11,10 +11,16 @@ const FREQUENCY_LABELS = {
 }
 
 const PERIOD_LABELS = {
-  day: 'Dia atual',
+  day: 'Dia anterior',
   week: 'Últimos 7 dias',
   biweek: 'Últimos 15 dias',
   month: 'Mês atual',
+}
+
+const MODEL_LABELS = {
+  fechamento: 'Fechamento financeiro',
+  pagamentos_dia: 'Pagamentos do dia',
+  recebimentos_dia: 'Recebimentos do dia',
 }
 
 const DAYS_WEEK = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
@@ -78,9 +84,7 @@ function CredentialsTab({ clientId }) {
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Token expira em</p>
           <div className="bg-slate-50 rounded-lg p-3">
             <p className="text-sm text-slate-700">
-              {creds?.ca_token_expires_at
-                ? new Date(creds.ca_token_expires_at).toLocaleString('pt-BR')
-                : '—'}
+              {creds?.ca_token_expires_at ? new Date(creds.ca_token_expires_at).toLocaleString('pt-BR') : '—'}
             </p>
           </div>
         </div>
@@ -101,7 +105,6 @@ function AccountsTab({ clientId }) {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [fetching, setFetching] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -154,21 +157,15 @@ function AccountsTab({ clientId }) {
       <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-slate-800">Contas Correntes</h2>
-          <p className="text-sm text-slate-500">Selecione quais contas serão consideradas nos relatórios. <span className="text-amber-600 font-medium">Caso nenhuma seja selecionada, todas serão consideradas.</span></p>        </div>
+          <p className="text-sm text-slate-500">Selecione quais contas serão consideradas nos relatórios. <span className="text-amber-600 font-medium">Caso nenhuma seja selecionada, todas serão consideradas.</span></p>
+        </div>
         <div className="flex gap-2">
-          <button className="btn-secondary text-sm" onClick={refresh} disabled={loading}>
-            🔄 Atualizar da API
-          </button>
-          <button className="btn-primary text-sm" onClick={save} disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar seleção'}
-          </button>
+          <button className="btn-secondary text-sm" onClick={refresh} disabled={loading}>🔄 Atualizar da API</button>
+          <button className="btn-primary text-sm" onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar seleção'}</button>
         </div>
       </div>
-
       {accounts.length === 0 ? (
-        <div className="p-12 text-center text-slate-400">
-          Nenhuma conta encontrada. Verifique a conexão com o sistema financeiro.
-        </div>
+        <div className="p-12 text-center text-slate-400">Nenhuma conta encontrada.</div>
       ) : (
         <table className="w-full">
           <thead>
@@ -182,13 +179,7 @@ function AccountsTab({ clientId }) {
             {accounts.map(a => (
               <tr key={a.account_id} className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => toggle(a.account_id)}>
                 <td className="px-6 py-4">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 accent-brand-500"
-                    checked={a.include_in_report}
-                    onChange={() => toggle(a.account_id)}
-                    onClick={e => e.stopPropagation()}
-                  />
+                  <input type="checkbox" className="w-4 h-4 accent-brand-500" checked={a.include_in_report} onChange={() => toggle(a.account_id)} onClick={e => e.stopPropagation()} />
                 </td>
                 <td className="px-6 py-4 font-medium text-slate-800">{a.account_name}</td>
                 <td className="px-6 py-4 text-slate-500 text-sm">{a.account_type || '—'}</td>
@@ -335,9 +326,7 @@ export default function ClientDetail() {
         <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-semibold text-slate-800">Destinatários WhatsApp</h2>
-            <button className="btn-primary text-sm" onClick={() => setModalR({ name: '', phone: '', role: '', active: true })}>
-              + Adicionar
-            </button>
+            <button className="btn-primary text-sm" onClick={() => setModalR({ name: '', phone: '', role: '', active: true })}>+ Adicionar</button>
           </div>
           <table className="w-full">
             <thead>
@@ -380,21 +369,16 @@ export default function ClientDetail() {
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-semibold text-slate-800">Agendamentos automáticos</h2>
             <div className="flex gap-2">
-              <button
-                className="btn-secondary text-sm"
-                onClick={async () => {
-                  try {
-                    const { data } = await api.post('/cron/run-client', { client_id: id })
-                    alert(data.message)
-                    load()
-                  } catch (err) {
-                    alert(err.response?.data?.error || 'Erro ao executar')
-                  }
-                }}
-              >
-                ▶ Executar agora
-              </button>
-              <button className="btn-primary text-sm" onClick={() => setModalS({ frequency: 'monthly', send_time: '08:00', period_type: 'month', day_of_week: 5, day_of_month: 1, active: true })}>
+              <button className="btn-secondary text-sm" onClick={async () => {
+                try {
+                  const { data } = await api.post('/cron/run-client', { client_id: id })
+                  alert(data.message)
+                  load()
+                } catch (err) {
+                  alert(err.response?.data?.error || 'Erro ao executar')
+                }
+              }}>▶ Executar agora</button>
+              <button className="btn-primary text-sm" onClick={() => setModalS({ frequency: 'daily_morning', send_time: '08:00', period_type: 'day', day_of_week: 5, day_of_month: 1, active: true, report_model: 'fechamento' })}>
                 + Novo agendamento
               </button>
             </div>
@@ -405,6 +389,7 @@ export default function ClientDetail() {
                 <th className="px-6 py-3">Frequência</th>
                 <th className="px-6 py-3">Horário</th>
                 <th className="px-6 py-3">Período</th>
+                <th className="px-6 py-3">Modelo</th>
                 <th className="px-6 py-3">Último envio</th>
                 <th className="px-6 py-3">Status</th>
                 <th className="px-6 py-3">Ações</th>
@@ -416,17 +401,14 @@ export default function ClientDetail() {
                   <td className="px-6 py-4 font-medium text-slate-800">{FREQUENCY_LABELS[s.frequency]}</td>
                   <td className="px-6 py-4 text-slate-600">{s.send_time}</td>
                   <td className="px-6 py-4 text-slate-600">{PERIOD_LABELS[s.period_type]}</td>
-                  <td className="px-6 py-4 text-slate-500 text-sm">
-                    {s.last_run ? new Date(s.last_run).toLocaleString('pt-BR') : 'Nunca'}
-                  </td>
+                  <td className="px-6 py-4 text-slate-600">{MODEL_LABELS[s.report_model] || 'Fechamento'}</td>
+                  <td className="px-6 py-4 text-slate-500 text-sm">{s.last_run ? new Date(s.last_run).toLocaleString('pt-BR') : 'Nunca'}</td>
                   <td className="px-6 py-4">
                     <span className={s.active ? 'badge-green' : 'badge-red'}>{s.active ? '● Ativo' : '● Pausado'}</span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
-                      <button className="btn-secondary text-sm" onClick={() => toggleSchedule(s)}>
-                        {s.active ? 'Pausar' : 'Ativar'}
-                      </button>
+                      <button className="btn-secondary text-sm" onClick={() => toggleSchedule(s)}>{s.active ? 'Pausar' : 'Ativar'}</button>
                       <button className="btn-secondary text-sm" onClick={() => setModalS({ ...s })}>Editar</button>
                       <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => removeSchedule(s.id)}>✕</button>
                     </div>
@@ -434,17 +416,14 @@ export default function ClientDetail() {
                 </tr>
               ))}
               {schedules.length === 0 && (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Nenhum agendamento configurado</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">Nenhum agendamento configurado</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
-      {/* Tab Contas Correntes */}
+
       {tab === 'accounts' && <AccountsTab clientId={id} />}
-
-
-      {/* Tab Credenciais */}
       {tab === 'credentials' && <CredentialsTab clientId={id} />}
 
       {/* Modal Destinatário */}
@@ -490,6 +469,14 @@ export default function ClientDetail() {
             <h2 className="text-lg font-semibold text-slate-800 mb-4">{modalS.id ? 'Editar agendamento' : 'Novo agendamento'}</h2>
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo de relatório</label>
+                <select className="input" value={modalS.report_model || 'fechamento'} onChange={e => setModalS(m => ({ ...m, report_model: e.target.value }))}>
+                  <option value="fechamento">Fechamento financeiro</option>
+                  <option value="pagamentos_dia">Pagamentos do dia anterior</option>
+                  <option value="recebimentos_dia">Recebimentos do dia anterior</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Frequência</label>
                 <select className="input" value={modalS.frequency} onChange={e => setModalS(m => ({ ...m, frequency: e.target.value }))}>
                   <option value="daily_morning">Diário — todo dia</option>
@@ -525,12 +512,6 @@ export default function ClientDetail() {
                   <option value="biweek">Últimos 15 dias</option>
                   <option value="month">Mês atual</option>
                 </select>
-                <p className="text-xs text-slate-400 mt-1">
-                  {modalS.period_type === 'day' && 'Relatório do dia anterior ao envio'}
-                  {modalS.period_type === 'week' && 'Relatório dos últimos 7 dias'}
-                  {modalS.period_type === 'biweek' && 'Relatório dos últimos 15 dias'}
-                  {modalS.period_type === 'month' && 'Relatório do mês atual até a data de envio'}
-                </p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">

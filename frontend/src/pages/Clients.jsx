@@ -29,9 +29,25 @@ export default function Clients() {
     setSaving(true)
     try {
       if (modal.id) {
-        await api.put(`/clients/${modal.id}`, modal)
+        const payload = {
+          name: modal.name,
+          status: modal.status,
+          integration_type: modal.integration_type,
+          omie_app_key: modal.omie_app_key,
+        }
+        // Só envia o secret se foi alterado
+        if (modal.omie_app_secret_changed) {
+          payload.omie_app_secret = modal.omie_app_secret
+        }
+        await api.put(`/clients/${modal.id}`, payload)
       } else {
-        await api.post('/clients', { name: modal.name, status: modal.status || 'active' })
+        await api.post('/clients', {
+          name: modal.name,
+          status: modal.status || 'active',
+          integration_type: modal.integration_type,
+          omie_app_key: modal.omie_app_key,
+          omie_app_secret: modal.omie_app_secret,
+        })
       }
       setModal(null)
       load()
@@ -55,7 +71,7 @@ export default function Clients() {
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500">Gerencie os clientes e conexões financeiras</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active', integration_type: 'conta_azul', omie_app_key: '', omie_app_secret: '', report_model: 'fechamento' })}>
+        <button className="btn-primary" onClick={() => setModal({ name: '', status: 'active', integration_type: 'conta_azul', omie_app_key: '', omie_app_secret: '' })}>
           + Novo cliente
         </button>
       </div>
@@ -119,14 +135,12 @@ export default function Clients() {
                         status: c.status,
                         integration_type: c.integration_type || 'conta_azul',
                         omie_app_key: c.omie_app_key || '',
-                        omie_app_secret: c.omie_app_secret || '',
-                        report_model: c.report_model || 'fechamento'
+                        omie_app_secret: '',
+                        omie_app_secret_changed: false,
                       })}>
                         Editar
                       </button>
-                      <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => remove(c.id, c.name)}>
-                        ✕
-                      </button>
+                      <button className="text-red-500 hover:text-red-700 text-sm px-2" onClick={() => remove(c.id, c.name)}>✕</button>
                     </div>
                   </td>
                 </tr>
@@ -164,13 +178,6 @@ export default function Clients() {
                   <option value="omie">Omie</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Modelo de relatório</label>
-                <select className="input" value={modal.report_model || 'fechamento'} onChange={e => setModal(m => ({ ...m, report_model: e.target.value }))}>
-                  <option value="fechamento">Fechamento financeiro</option>
-                  <option value="pagamentos_dia">Pagamentos do dia anterior</option>
-                </select>
-              </div>
               {modal.integration_type === 'omie' && (
                 <>
                   <div>
@@ -178,8 +185,17 @@ export default function Clients() {
                     <input className="input font-mono text-sm" value={modal.omie_app_key} onChange={e => setModal(m => ({ ...m, omie_app_key: e.target.value }))} placeholder="App Key do cliente" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Omie App Secret</label>
-                    <input className="input font-mono text-sm" type="password" value={modal.omie_app_secret} onChange={e => setModal(m => ({ ...m, omie_app_secret: e.target.value }))} placeholder="App Secret do cliente" />
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Omie App Secret
+                      {modal.id && <span className="text-slate-400 font-normal ml-1">(deixe em branco para manter o atual)</span>}
+                    </label>
+                    <input
+                      className="input font-mono text-sm"
+                      type="password"
+                      value={modal.omie_app_secret}
+                      onChange={e => setModal(m => ({ ...m, omie_app_secret: e.target.value, omie_app_secret_changed: true }))}
+                      placeholder={modal.id ? '••••••••' : 'App Secret do cliente'}
+                    />
                   </div>
                 </>
               )}

@@ -78,14 +78,14 @@ async function processJob(job) {
     return { status: 'skipped' }
   }
 
-  const reportData = await new Promise((resolve, reject) => {
-    const req = { body: { client_id, period_start, period_end } }
-    const res = {
-      json: resolve,
-      status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
-    }
-    generateReport(req, res)
-  })
+const reportData = await new Promise((resolve, reject) => {
+  const req = { body: { client_id, period_start, period_end, report_model: job.report_model } }
+  const res = {
+    json: resolve,
+    status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
+  }
+  generateReport(req, res)
+})
 
   const sendData = await new Promise((resolve, reject) => {
     const req = { body: { ...reportData, recipients } }
@@ -240,7 +240,7 @@ async function list(req, res) {
 }
 
 async function create(req, res) {
-  const { frequency, send_time, day_of_week, day_of_month, period_type } = req.body
+  const { frequency, send_time, day_of_week, day_of_month, period_type, report_model } = req.body
   const { data, error } = await supabase
     .from('schedules')
     .insert({
@@ -250,6 +250,7 @@ async function create(req, res) {
       day_of_week,
       day_of_month,
       period_type: period_type || 'month',
+      report_model: report_model || 'fechamento',
     })
     .select()
     .single()
@@ -258,10 +259,10 @@ async function create(req, res) {
 }
 
 async function update(req, res) {
-  const { frequency, send_time, day_of_week, day_of_month, period_type, active } = req.body
+  const { frequency, send_time, day_of_week, day_of_month, period_type, active, report_model } = req.body
   const { data, error } = await supabase
     .from('schedules')
-    .update({ frequency, send_time, day_of_week, day_of_month, period_type, active })
+    .update({ frequency, send_time, day_of_week, day_of_month, period_type, active, report_model })
     .eq('id', req.params.id)
     .select()
     .single()

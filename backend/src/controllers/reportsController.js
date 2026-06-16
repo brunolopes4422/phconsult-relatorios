@@ -50,9 +50,9 @@ function buildMessagePagamentosDia(recipientName, date, saidas, pagamentos) {
 
   const lista = pagamentos.length > 0
     ? pagamentos
-        .sort((a, b) => b.valor - a.valor)
-        .map((p, i) => `${i + 1}. ${p.nome} - R$ ${formatCurrency(p.valor)}`)
-        .join('\n')
+      .sort((a, b) => b.valor - a.valor)
+      .map((p, i) => `${i + 1}. ${p.nome} - R$ ${formatCurrency(p.valor)}`)
+      .join('\n')
     : 'Nenhum pagamento realizado'
 
   return `Olá, ${recipientName}!
@@ -62,6 +62,29 @@ function buildMessagePagamentosDia(recipientName, date, saidas, pagamentos) {
 ${lista}
 
 💰 Total pago: R$ ${formatCurrency(saidas)}
+
+ℹ️ Valores referentes aos lançamentos registrados no sistema até as 23:59 de ${fmt(date)}.
+
+Atenciosamente,
+Equipe PH Consult Pro`
+}
+function buildMessageRecebimentosDia(recipientName, date, entradas, recebimentos) {
+  const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
+
+  const lista = recebimentos.length > 0
+    ? recebimentos
+      .sort((a, b) => b.valor - a.valor)
+      .map((r, i) => `${i + 1}. ${r.nome} - R$ ${formatCurrency(r.valor)}`)
+      .join('\n')
+    : 'Nenhum recebimento realizado'
+
+  return `Olá, ${recipientName}!
+
+💰 Recebimentos realizados em ${fmt(date)}:
+
+${lista}
+
+📈 Total recebido: R$ ${formatCurrency(entradas)}
 
 ℹ️ Valores referentes aos lançamentos registrados no sistema até as 23:59 de ${fmt(date)}.
 
@@ -163,7 +186,7 @@ async function fetchCAReceberPagar(token, period_start, period_end, selectedAcco
 }
 
 async function generate(req, res) {
-  const { client_id, period_start, period_end } = req.body
+  const { client_id, period_start, period_end, report_model: reportModelOverride } = req.body
   if (!client_id || !period_start || !period_end) {
     return res.status(400).json({ error: 'Campos obrigatórios: client_id, period_start, period_end' })
   }
@@ -175,6 +198,8 @@ async function generate(req, res) {
     .single()
 
   if (!client) return res.status(404).json({ error: 'Cliente não encontrado' })
+
+  const reportModel = reportModelOverride || client.report_model || 'fechamento'
 
   try {
     let entradas = 0, saidas = 0, saldoAnterior = 0, saldoAtual = 0, raw = {}
@@ -198,8 +223,10 @@ async function generate(req, res) {
       saldoAtual = result.saldoAtual || (saldoAnterior + (entradas - saidas))
       raw = { receber_count: result.receber_count, pagar_count: result.pagar_count }
 
-      if (client.report_model === 'pagamentos_dia') {
+      if (reportModel === 'pagamentos_dia') {
         message = buildMessagePagamentosDia(client.name, period_end, saidas, result.pagamentos || [])
+      } else if (reportModel === 'recebimentos_dia') {
+        message = buildMessageRecebimentosDia(client.name, period_end, entradas, result.recebimentos || [])
       } else {
         message = buildMessageOmie(client.name, period_start, period_end, entradas, saidas, entradas - saidas, saldoAnterior, saldoAtual)
       }
