@@ -65,10 +65,14 @@ ${lista}
 
 ℹ️ Valores referentes aos lançamentos registrados no sistema até as 23:59 de ${fmt(date)}.
 
+⚠️ Lançamentos registrados após o fechamento do dia podem aparecer no relatório do dia seguinte.
+
+
+
 Atenciosamente,
 Equipe PH Consult Pro`
 }
-function buildMessageRecebimentosDia(recipientName, date, entradas, recebimentos) {
+function buildMessageRecebimentosDia(recipientName, date, entradas, recebimentos, recebimentosPorConta) {
   const fmt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')
 
   const lista = recebimentos.length > 0
@@ -78,15 +82,23 @@ function buildMessageRecebimentosDia(recipientName, date, entradas, recebimentos
       .join('\n')
     : 'Nenhum recebimento realizado'
 
+  const resumoConta = recebimentosPorConta && Object.keys(recebimentosPorConta).length > 0
+    ? '\n\n🏦 Por conta corrente:\n' + Object.entries(recebimentosPorConta)
+      .map(([conta, valor]) => `• ${conta}: R$ ${formatCurrency(valor)}`)
+      .join('\n')
+    : ''
+
   return `Olá, ${recipientName}!
 
 💰 Recebimentos realizados em ${fmt(date)}:
 
 ${lista}
 
-📈 Total recebido: R$ ${formatCurrency(entradas)}
+📈 Total recebido: R$ ${formatCurrency(entradas)}${resumoConta}
 
 ℹ️ Valores referentes aos lançamentos registrados no sistema até as 23:59 de ${fmt(date)}.
+
+⚠️ Lançamentos registrados após o fechamento do dia podem aparecer no relatório do dia seguinte.
 
 Atenciosamente,
 Equipe PH Consult Pro`
@@ -215,7 +227,8 @@ async function generate(req, res) {
         client.omie_app_secret,
         period_start,
         period_end,
-        selectedAccounts
+        selectedAccounts,
+        reportModel
       )
       entradas = result.entradas
       saidas = result.saidas
@@ -226,7 +239,7 @@ async function generate(req, res) {
       if (reportModel === 'pagamentos_dia') {
         message = buildMessagePagamentosDia(client.name, period_end, saidas, result.pagamentos || [])
       } else if (reportModel === 'recebimentos_dia') {
-        message = buildMessageRecebimentosDia(client.name, period_end, entradas, result.recebimentos || [])
+        message = buildMessageRecebimentosDia(client.name, period_end, entradas, result.recebimentos || [], result.recebimentosPorConta || {})
       } else {
         message = buildMessageOmie(client.name, period_start, period_end, entradas, saidas, entradas - saidas, saldoAnterior, saldoAtual)
       }

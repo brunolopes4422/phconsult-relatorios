@@ -33,9 +33,9 @@ async function fetchExtrato(appKey, appSecret, periodStart, periodEnd, contaId) 
   }
 }
 
-async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, accountIds) {
+async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, accountIds, reportModel) {
   if (!accountIds || accountIds.length === 0) {
-    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, saldoAtual: 0, receber_count: 0, pagar_count: 0, pagamentos: [], recebimentos: [] }
+    return { entradas: 0, saidas: 0, saldo: 0, saldoAnterior: 0, saldoAtual: 0, receber_count: 0, pagar_count: 0, pagamentos: [], recebimentos: [], recebimentosPorConta: {} }
   }
 
   let totalEntradas = 0
@@ -45,15 +45,17 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
   let pagar_count = 0
   let pagamentos = []
   let recebimentos = []
+  const recebimentosPorConta = {}
 
   for (const contaId of accountIds) {
     await sleep(2000)
 
     const data = await fetchExtrato(appKey, appSecret, periodStart, periodEnd, Number(contaId))
-
     totalSaldoAnterior += data?.nSaldoAnterior || 0
 
+    const contaNome = data?.cDescricao || `Conta ${contaId}`
     const movimentos = data?.listaMovimentos || []
+    let totalContaEntradas = 0
 
     for (const m of movimentos) {
       const situacao = m.cSituacao || ''
@@ -68,18 +70,17 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
       if (natureza === 'R') {
         totalEntradas += valor
         receber_count++
-        recebimentos.push({
-          nome: m.cDesCliente || 'Sem descrição',
-          valor,
-        })
+        recebimentos.push({ nome: m.cDesCliente || 'Sem descrição', valor })
+        totalContaEntradas += valor
       } else if (natureza === 'P') {
         totalSaidas += valor
         pagar_count++
-        pagamentos.push({
-          nome: m.cDesCliente || 'Sem descrição',
-          valor,
-        })
+        pagamentos.push({ nome: m.cDesCliente || 'Sem descrição', valor })
       }
+    }
+
+    if (reportModel === 'recebimentos_dia' && totalContaEntradas > 0) {
+      recebimentosPorConta[contaNome] = totalContaEntradas
     }
   }
 
@@ -95,6 +96,7 @@ async function fetchOmieFinanceiro(appKey, appSecret, periodStart, periodEnd, ac
     pagar_count,
     pagamentos,
     recebimentos,
+    recebimentosPorConta,
   }
 }
 
