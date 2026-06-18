@@ -7,7 +7,7 @@ function getPeriod(periodType, reportModel) {
   const today = nowBR.toISOString().split('T')[0]
 
   if (periodType === 'day') {
-    if (reportModel === 'pagamentos_dia') {
+    if (reportModel === 'pagamentos_dia' || reportModel === 'recebimentos_dia') {
       const yesterday = new Date(nowBR)
       yesterday.setDate(nowBR.getDate() - 1)
       const y = yesterday.toISOString().split('T')[0]
@@ -78,14 +78,14 @@ async function processJob(job) {
     return { status: 'skipped' }
   }
 
-const reportData = await new Promise((resolve, reject) => {
-  const req = { body: { client_id, period_start, period_end, report_model: job.report_model } }
-  const res = {
-    json: resolve,
-    status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
-  }
-  generateReport(req, res)
-})
+  const reportData = await new Promise((resolve, reject) => {
+    const req = { body: { client_id, period_start, period_end, report_model: job.report_model } }
+    const res = {
+      json: resolve,
+      status: (code) => ({ json: (data) => reject(new Error(data.error || `HTTP ${code}`)) })
+    }
+    generateReport(req, res)
+  })
 
   const sendData = await new Promise((resolve, reject) => {
     const req = { body: { ...reportData, recipients } }
@@ -163,7 +163,7 @@ async function runCron(req, res) {
       continue
     }
 
-    const { start, end } = getPeriod(schedule.period_type, client.report_model)
+    const { start, end } = getPeriod(schedule.period_type, schedule.report_model)
 
     await supabase.from('job_queue').insert({
       client_id: schedule.client_id,
@@ -172,6 +172,7 @@ async function runCron(req, res) {
       period_end: end,
       status: 'pending',
       attempts: 0,
+      report_model: schedule.report_model || 'fechamento',
     })
 
     await supabase.from('schedules')
@@ -179,7 +180,7 @@ async function runCron(req, res) {
       .eq('id', schedule.id)
 
     queued++
-    console.log(`CRON queued job for ${client.name} (${start} → ${end})`)
+    console.log(`CRON queued job for ${client.name} (${start} → ${end}) model=${schedule.report_model}`)
   }
 
   res.json({ queued, message: 'OK' })
@@ -213,7 +214,7 @@ async function runClient(req, res) {
   }
 
   const schedule = schedules[0]
-  const { start, end } = getPeriod(schedule.period_type, client.report_model)
+  const { start, end } = getPeriod(schedule.period_type, schedule.report_model)
 
   const { data: job } = await supabase.from('job_queue').insert({
     client_id,
@@ -222,6 +223,7 @@ async function runClient(req, res) {
     period_end: end,
     status: 'pending',
     attempts: 0,
+    report_model: schedule.report_model || 'fechamento',
   }).select().single()
 
   res.json({ message: 'Job enfileirado, processando...', job_id: job.id })
